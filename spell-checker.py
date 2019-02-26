@@ -1,18 +1,18 @@
 from math import log10, log, sqrt
-#import xml.etree.cElementTree as ET  # to read xml files
+import xml.etree.cElementTree as ET  # to read xml files
 import re  # regular expressions
 import sys
-#import codecs
-#import platform
-#import arpa
-#import os
-#import subprocess
-#import time
-#from joblib import Parallel, delayed
-#import multiprocessing
-#import copy
+import codecs
+import platform
+import arpa
+import os
+import subprocess
+import time
+from joblib import Parallel, delayed
+import multiprocessing
+import copy
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import string
 
 import argparse
@@ -2193,7 +2193,7 @@ def train():
 	global blackList
 	blackList = buildBlackList()
 
-	print("finished Training " + '\n')
+	#print("finished Training " + '\n')
 
 	return lm, error_model
 
@@ -2657,6 +2657,18 @@ def correctFile(LM, EM, file_name, new_dest = ""):
 			
 			data = file.read()
 		
+			## TODO MIT DEN DREI ZEILEN UNTER KANN MAN DIE DATEI DIREKT ÜBERSCHREIBEN:
+			## VORSICHT: XML TAGS WERDEN AUCH ÜBERSCHREIBEN
+
+
+			file.seek(0)
+			file.truncate()
+			file.write("Und weg ist alles!")
+
+
+
+
+		
 			# create output document
 			new_file_name = file_name
 			if not OVERWRITE:
@@ -2676,6 +2688,7 @@ def correctFile(LM, EM, file_name, new_dest = ""):
 
 def main(alreadyGenerated):
 
+
 	LM, EM = train()	
 
 
@@ -2687,6 +2700,8 @@ def main(alreadyGenerated):
 			
 	
 	process_correction_input(correction_input, LM, EM)
+	
+	print()
 	return
 	
 	
