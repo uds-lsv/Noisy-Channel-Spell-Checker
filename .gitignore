@@ -1,0 +1,9 @@
+# PyCharm
+.idea/
+
+# ignore all folders
+*/
+
+# ignore subfolders in 'data'
+data/*/
+

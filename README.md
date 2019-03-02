@@ -16,7 +16,7 @@ The tool can be executed by calling ``spell-checker.py``. It provides a variety 
 | **`-o`** or **`--output`**       | file \| directory  | Determine where to store the corrected files (per default: location of input data) |
 | **`-ow`** or **`--overwrite`**       |  | If set, all the selected documents are overwritten by its correction. |
 |      | |  |
-| **`-arpa`**      | lm.arpa | ARPA file to instantiate the language model, skips LM training  |
+| **`--arpa`**      | lm.arpa | ARPA file to instantiate the language model, skips LM training  |
 | **`-lm`** or **`--languagemodel`**       | lm.arpa | Filename to determine where to store the trained, arpa-formated language model. |
 | **`-tr`** or **`--train`**       | file \| directory | Training files to train a language model. You can enter file(s) or entire folder(s). |
 | **`-ocr`**       |  | Use tool to post-process noisy OCR texts. **Attention:** You can either use the -ocr or the -typo option.  |
