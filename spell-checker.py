@@ -2608,28 +2608,35 @@ def process_arguments(args):
     # TODO train
     elif args.train != None:
 
+        EM = None
+        LM = None
+
         files = []
-        directories = []
 
         for data in args.train:
+            # collect all training files
             if os.path.isfile(data):
                 files.append(data)
-            #FILES
+            # collect all training files in training directories
             elif os.path.isdir(data):
-                directories.append(data)
-            #DIRECTORY
+                for root, subdirs, files in os.walk(data):
+                    for f in files:
+                        if os.path.isfile(f):
+                            files.append(f)
             else:
-                print(data, "is no file or directory")
+                print(data, "is neither a file nor a directory")
 
 
-        print(files)
-        print(directories)
+
+        print("Files", files)
+
+
 
     else:
-        pass # TODO default *arpa
+        pass # TODO default *.arpa
 
-        EM=None
-        LM=None
+        EM = None
+        LM = None
 
 
 
@@ -2658,7 +2665,7 @@ def process_arguments(args):
 
 
     if args.perplexity is not None:
-
+        pass
         # TODO compute Perplexity
 
 

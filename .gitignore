@@ -3,6 +3,7 @@
 
 # ignore all folders
 */
+!data/
 
 # ignore subfolders in 'data'
 data/*/
