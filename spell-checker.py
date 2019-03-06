@@ -654,7 +654,7 @@ def buildLanguageModel(alreadyGenerated=False, TestSet = True):
         voc.close()
 
     # TODO change that
-        subprocess.call("/nethome/cklaus/tools/srilm/bin/i686-m64/ngram-count   -vocab vocabulary.count   -order "+str(N_GRAM)+"   -no-eos -no-sos    -text corpus.txt  -unk   -write count"+str(N_GRAM)+".count", shell=True)
+        subprocess.call("./ngram-count   -vocab vocabulary.count   -order "+str(N_GRAM)+"   -no-eos -no-sos    -text corpus.txt  -unk   -write count"+str(N_GRAM)+".count", shell=True)
 
 
 
@@ -669,7 +669,7 @@ def buildLanguageModel(alreadyGenerated=False, TestSet = True):
 
 
 
-        subprocess.call("/nethome/cklaus/tools/srilm/bin/i686-m64/ngram-count   -vocab vocabulary.count   -order "+str(N_GRAM)+"  -unk -no-eos  -no-sos -read count"+str(N_GRAM)+".count  -lm LM"+str(N_GRAM)+".lm" + smooth, shell=True)
+        subprocess.call("./ngram-count   -vocab vocabulary.count   -order "+str(N_GRAM)+"  -unk -no-eos  -no-sos -read count"+str(N_GRAM)+".count  -lm LM"+str(N_GRAM)+".lm" + smooth, shell=True)
         print("created LANGUAGE MODEL")
 
         LM = LanguageModel()
@@ -926,124 +926,6 @@ def buildBlackList():
 
     file.close()
     return blackList
-
-
-def alignWordsOLD(a, b):
-    # https://github.com/alevchuk/pairwise-alignment-in-python
-
-    def zeros(shape):
-        retval = []
-        for x in range(shape[0]):
-            retval.append([])
-            for y in range(shape[1]):
-                retval[-1].append(0)
-        return retval
-
-    match_award = 10
-    mismatch_penalty = -5
-    gap_penalty = -5  # both for opening and extanding
-
-    def match_score(alpha, beta):
-        if alpha == beta:
-            return match_award
-        elif alpha == '°' or beta == '°':
-            return gap_penalty
-        else:
-            return mismatch_penalty
-
-    def finalize(aligA, aligB):
-
-
-        edits = []
-
-        aligA = aligA[::-1]  # reverse sequence 1
-        aligB = aligB[::-1]  # reverse sequence 2
-
-        temp = ">"
-
-        for i in range(max(len(aligA), len(aligB))):
-
-            if aligA[i] == aligB[i]:
-                edits.append(aligA[i] + '|' + aligA[i])  # eq
-
-                temp += aligA[i]
-
-            elif aligA[i] == '°':
-                if i == 0:
-                    edits.append('>|>' + aligB[i])  # insert
-
-                else:
-                    edits.append(temp[-1] + '|' + temp[-1] + aligB[i])  # insert
-
-                temp += aligB[i]
-
-            elif aligB[i] == '°':
-                if i == 0:
-                    edits.append('>' + aligA[i] + '|>')  # delete
-                else:
-                    edits.append(temp[-1] + aligA[i] + '|' + temp[-1])  # delete
-
-            elif aligA[i] != aligB[i]:
-                edits.append(aligA[i] + '|' + aligB[i])  # repl
-                temp += aligB[i]
-
-        return edits
-
-    def needle(seq1, seq2):
-        m, n = len(seq1), len(seq2)  # length of two sequences
-
-        # Generate DP table and traceback path pointer matrix
-        score = zeros((m + 1, n + 1))  # the DP table
-
-        # Calculate DP table
-        for i in range(0, m + 1):
-            score[i][0] = gap_penalty * i
-        for j in range(0, n + 1):
-            score[0][j] = gap_penalty * j
-        for i in range(1, m + 1):
-            for j in range(1, n + 1):
-                match = score[i - 1][j - 1] + match_score(seq1[i - 1], seq2[j - 1])
-                delete = score[i - 1][j] + gap_penalty
-                insert = score[i][j - 1] + gap_penalty
-                score[i][j] = max(match, delete, insert)
-
-        # Traceback and compute the alignment
-        aligA, aligB = '', ''
-        i, j = m, n  # start from the bottom right cell
-
-        while i > 0 and j > 0:  # end toching the top or the left edge
-            score_current = score[i][j]
-            score_diagonal = score[i - 1][j - 1]
-            score_up = score[i][j - 1]
-            score_left = score[i - 1][j]
-
-            if score_current == score_left + gap_penalty:
-                aligA += seq1[i - 1]
-                aligB += '°'
-                i -= 1
-            elif score_current == score_up + gap_penalty:
-                aligA += '°'
-                aligB += seq2[j - 1]
-                j -= 1
-            elif score_current == score_diagonal + match_score(seq1[i - 1], seq2[j - 1]):  # and seq1[i-1] == seq2[j-1] :
-                aligA += seq1[i - 1]
-                aligB += seq2[j - 1]
-                i -= 1
-                j -= 1
-
-        # Finish tracing up to the top left cell
-        while i > 0:
-            aligA += seq1[i - 1]
-            aligB += '°'
-            i -= 1
-        while j > 0:
-            aligA += '°'
-            aligB += seq2[j - 1]
-            j -= 1
-
-        return finalize(aligA, aligB)
-
-    return needle(a, b)
 
 
 def alignWords(a, b):
@@ -1736,7 +1618,7 @@ def testMetrics(algorithm="<noisy>"):
 
 def computePerplexity():
 
-    subprocess.call("/nethome/cklaus/tools/srilm/bin/i686-m64/ngram -lm LM" + str(N_GRAM) + ".lm -unk -ppl groundTruth.txt -order "+str(N_GRAM), shell=True)
+    subprocess.call("./ngram -lm LM" + str(N_GRAM) + ".lm -unk -ppl groundTruth.txt -order "+str(N_GRAM), shell=True)
 
 def testChangingPercentage(algorithm="<noisy>"):
     changes, numberwords = 0, 0
@@ -2510,7 +2392,7 @@ def readArguments():
     ## PARAMETERS
     #TODO brauchen wir nargs=1 ?
     parser.add_argument("--lmweight", default=1.25,  metavar="WEIGHT",type=float,   help='numeric value w that weights the language model P(c)^w')
-    parser.add_argument("--order", type=int, default=2,  metavar="ORDER",  help='Order of generated language model.')
+    parser.add_argument("--order", type=int, default=1,  metavar="ORDER",  help='Order of generated language model.')
     parser.add_argument("--error_model_smooth",  default=0.0001,  metavar="PSEUDOCOUNT",type=float,   help='pseudocount for laplace smoothing of the error model probabilities')
 
 
