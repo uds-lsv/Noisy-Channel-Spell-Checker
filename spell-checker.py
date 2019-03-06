@@ -294,42 +294,64 @@ class LanguageModel(dict):
 
 
 class ErrorModel(dict):
-    unigrams = {}
-    bigrams = {}
-    numberDeletionAtBeginning = 6413
 
-    def __init__(self):
-        pass
+    _unigrams = {}
+    _bigrams = {}
+
+
+    def __init__(self, unigrams, bigrams, modus):
+
+        self._unigrams = unigrams
+        self._bigrams = bigrams
+
+        editFile = open(Path('data', modus + '.txt'), "r", encoding="iso-8859-1")
+
+        # read in edit file
+        for line in editFile:
+            line_list = line.split('\t')
+            self[line_list[0]] = int(line_list[1])
+
+            # ensures well-formated edit file
+            assert(len(line_list) == 2)
+
+        # Sometimes we see edits like >e|> which means the right side of the edit transformation is empty.
+        # They need to be handled in a special case.
+
+        summe = 0
+        for key in self:
+            if key.split('|')[1] == '>':
+                summe += self[key]
+        self._numberDeletionAtBeginning = summe
+
 
     @memo2
     def __call__(self, edit):
-        denom = 0
+
         if edit:
-            result = self.get(edit, 0)
-            right = re.sub(">", "", edit.split('|')[1])
+            denom = 0
+            edit_freq = self.get(edit, 0)
+            right_side = re.sub(">", "", edit.split('|')[1])
 
-            if len(right) == 1:
-                denom = self.unigrams.get(right, 0)
-            elif len(right) == 2:
-                denom = self.bigrams.get(right, 0)
-            #elif len(right) == 3:
-            #denom = self.trigrams.get(right, 0)
-            # happens e.g. >e|>
-            elif len(right) == 0:
-                denom = self.numberDeletionAtBeginning * 100
+            # Example "e|e"
+            if len(right_side) == 1:
+                denom = self._unigrams.get(right_side, 0)
+            #Example "e|ee"
+            elif len(right_side) == 2:
+                denom = self._bigrams.get(right_side, 0)
+
+            # This happends from time to time e.g. >e|>
+            elif len(right_side) == 0:
+                denom = self._numberDeletionAtBeginning # * 100
             else:
-                pass#print("'" + right + "' not found in " + edit)
+                pass
 
+            # Safety case: return a very small value
             if denom == 0:
                 return 0.000000000000000001
-            return (result + SMOOTH_EM) / float(denom + SMOOTH_EM * len(self))
+
+            return (edit_freq + SMOOTH_EM) / float(denom + SMOOTH_EM * len(self))
         else:
             return 1
-
-
-
-    def setNumberDeletionAtBeginning(self, n):
-        self.numberDeletionAtBeginning = n
 
     def setUnigrams(self, unigrams):
         self.unigrams = unigrams
@@ -721,7 +743,9 @@ def GroundTruthToTxt():
         sys.stdout.flush()
     corpus.close()
 
-
+"""
+This is reserved for correcting the Royal Society Corpus
+"""
 def readRules():
 
     ######
@@ -743,24 +767,24 @@ def readRules():
     return rules
 
 
-def buildErrorModel(rules, Unigrams, Bigrams, alreadyGenerated=False):
-    edits = ErrorModel()
-    edits.setUnigrams(Unigrams)
-    edits.setBigrams(Bigrams)
-
-    #if alreadyGenerated:
-    editFile = open("data/edits.count", "r", encoding="iso-8859-1")
-    for line in editFile:
-        lineList = line.split('\t')
-        edits[lineList[0]] = int(lineList[1])
-
-    ## solve problem with deletion at beginning
-    summe = 0
-    for key in edits:
-        spl = key.split('|')[1]
-        if spl == ">":
-            summe += edits[key]
-    edits.setNumberDeletionAtBeginning(summe)
+# def buildErrorModel(rules, Unigrams, Bigrams, alreadyGenerated=False):
+#     edits = ErrorModel()
+#     edits.setUnigrams(Unigrams)
+#     edits.setBigrams(Bigrams)
+#
+#     #if alreadyGenerated:
+#     editFile = open("data/ocr.txt", "r", encoding="iso-8859-1")
+#     for line in editFile:
+#         lineList = line.split('\t')
+#         edits[lineList[0]] = int(lineList[1])
+#
+#     ## solve problem with deletion at beginning
+#     summe = 0
+#     for key in edits:
+#         spl = key.split('|')[1]
+#         if spl == ">":
+#             summe += edits[key]
+#     edits.setNumberDeletionAtBeginning(summe)
 
     #~ else:
     #~ count = 0
@@ -871,13 +895,13 @@ def buildErrorModel(rules, Unigrams, Bigrams, alreadyGenerated=False):
 
     #~ ## WRITE TO FILE
     #~ sorted_EM = sorted(edits, key=edits.get, reverse=True)
-    #~ out = open("data/edits.count", "w", encoding="iso-8859-1")
+    #~ out = open("data/ocr.txt", "w", encoding="iso-8859-1")
 
     #~ for key in sorted_EM:
     #~ out.write(key + "	" + str(edits[key]) + '\n')
     #~ out.close()
 
-    return edits
+#    return edits
 
 
 def buildBlackList():
@@ -2185,7 +2209,7 @@ def reTrainErrorModel(Unigrams, Bigrams):
 
     ## WRITE TO FILE
     sorted_EM = sorted(edits, key=edits.get, reverse=True)
-    out = open("edits.count", "w")
+    out = open("ocr.txt", "w")
 
     for key in sorted_EM:
         out.write(key + "	" + str(edits[key]) + '\n')
@@ -2200,7 +2224,7 @@ def train():
 
 
     lm,  unigrams, bigrams = buildLanguageModel(True)
-    error_model = buildErrorModel(readRules(), unigrams, bigrams,True)
+    error_model = ErrorModel(unigrams, bigrams, 'ocr') # buildErrorModel(readRules(), unigrams, bigrams,True)
 
     #lm,  unigrams, bigrams = buildLanguageModelOLD(alreadyGenerated)
 
@@ -2469,7 +2493,7 @@ def readArguments():
     ## CORRECTION
     parser.add_argument("-c", '--correct',  type=str ,metavar="INPUT", nargs='*', help='Text that is supposed to be corrected by the spell checker. You can enter one or more files, multiple directories or direct input. Directories are recursively traversed ')
     parser.add_argument("-ow", '--overwrite', action='store_true', help='If set, all the selected documents are overwritten by its correction.')
-    parser.add_argument("-o", '--output', default = "", help='Determine where to store the corrected files (per default: location of input data)')
+    parser.add_argument("-o", '--output', default = "output/", help='Determine where to store the corrected files (per default: location of input data)')
 
 
     ## TRAINING
@@ -2517,9 +2541,9 @@ def readArguments():
 
     return args
 
+
 def process_arguments(args):
 
-    # workaround if 'argparse' has set the default value
 
     print(args)
 
@@ -2527,16 +2551,6 @@ def process_arguments(args):
         if value is not None:
             print(">>",k, value)
 
-
-
-
-    # TODO brauchen wir das ?
-
-    #def checkDefault(o):
-    #    if isinstance(o, (list,)):
-    #        return o[0]
-    #    else:
-    #        return o
 
 
     ## PARAMETERS
@@ -2562,6 +2576,7 @@ def process_arguments(args):
 
     global DESTINATION_DIR
     DESTINATION_DIR = os.path.join(args.output)
+    print(DESTINATION_DIR)
     # safely check for existence and create output folder
     if not os.path.exists(DESTINATION_DIR):
         os.makedirs(DESTINATION_DIR)
@@ -2569,14 +2584,8 @@ def process_arguments(args):
 
     ### TRAINING
 
-    global OCR
-    if args.typo:
-        OCR = False
-    elif args.ocr:
-        OCR=True
 
-
-    # check whether stopwords were set
+    # Check whether stopwords were set
     if args.stopwords is not None:
         # Iterate over stopword instances
         for stop in args.stopwords:
@@ -2595,73 +2604,70 @@ def process_arguments(args):
 
     global QUIET
     QUIET = args.quiet
+
     global VERBOSE
     VERBOSE = args.verbose
+
     global SKIP_HTML
     SKIP_HTML = args.skip_html
+
     global EVALUATE_ROYAL_SOCIETY_CORPUS
     EVALUATE_ROYAL_SOCIETY_CORPUS = args.royal
+
 
     if args.arpa is not None and os.path.isfile(Path(args.arpa)):
         LM = LanguageModel(arpa_file=os.path.join(Path(args.arpa)))
 
-    # TODO train
-    elif args.train != None:
+    elif args.train is not None:
 
-        EM = None
-        LM = None
-
-        files = []
+        file_container = []
 
         for data in args.train:
             # collect all training files
             if os.path.isfile(data):
-                files.append(data)
+                file_container.append(data)
             # collect all training files in training directories
             elif os.path.isdir(data):
                 for root, subdirs, files in os.walk(data):
                     for f in files:
-                        if os.path.isfile(f):
-                            files.append(f)
+                        file_container.append(Path(root, f))
+            # in any other case reject input
             else:
                 print(data, "is neither a file nor a directory")
 
 
 
-        print("Files", files)
+        print("Files", file_container)
 
-
-
-    else:
-        pass # TODO default *.arpa
-
-        EM = None
+        # TODO train
         LM = None
 
 
 
-    ### CORRECTION
+    else:
 
-    files = []
-    directories = []
-    tokens = []
-    prompt = False
+        # TODO default 2-gram *.arpa of the Royal Society Corpus
 
-    if args.correct != None:
+        LM = None
 
-        if len(args.correct) > 0:
-            for data in args.correct:
-                if os.path.isfile(data):
-                    files.append(data)
-                #FILES
-                elif os.path.isdir(data):
-                    directories.append(data)
-                #DIRECTORY
-                else:
-                    tokens.append(data)
-        #DIRECT INPUT
-        else:
-            prompt = True	#PROMPT
+    # Train Error Model
+
+    # TODO Unigrams, Bigrams from train_language model
+    unigrams = {}
+    bigrams = {}
+
+
+    global OCR
+    if args.typo:
+        OCR = False
+        EM = ErrorModel(unigrams, bigrams, 'typo')
+    elif args.ocr:
+        OCR = True
+        EM = ErrorModel(unigrams, bigrams, 'ocr')
+
+
+    #TODO   ### DELETE THAT
+    LM, EM = train()
 
 
     if args.perplexity is not None:
@@ -2669,7 +2675,37 @@ def process_arguments(args):
         # TODO compute Perplexity
 
 
-    return LM,EM,{"files":files, "directories":directories, "tokens":tokens, "prompt":prompt}
+    ### CORRECTION
+
+    files = []
+    tokens = []
+    prompt = False
+
+
+    if args.correct is not None:
+
+        # Give files or strings as input
+        if len(args.correct) > 0:
+            for data in args.correct:
+                # Extract files
+                if os.path.isfile(data):
+                    files.append(data)
+                # Extract directories
+                elif os.path.isdir(data):
+                    for root, subdirs, dir_files in os.walk(data):
+                        for f in dir_files:
+                            files.append(Path(root, f))
+                # Direct Token input
+                else:
+                    tokens.append(data)
+        #If only -c/--correct is given, open prompt environment
+        else:
+            prompt = True
+
+    correction_input = {"files": files, "tokens": tokens, "prompt": prompt}
+
+    return LM, EM, correction_input
+
 
 
 
@@ -2692,11 +2728,11 @@ def correctionPrompt(LM, EM):
     return
 
 
-def process_correction_input(input, LM, EM):
+def process_correction_input(LM, EM, input):
 
     ## PROMPT
     if input["prompt"]:
-        correctionPrompt(LM,EM)
+        correctionPrompt(LM, EM)
         return
 
     ## CORRECT DIRECT INPUT
@@ -2706,78 +2742,64 @@ def process_correction_input(input, LM, EM):
     for file in input["files"]:
         correctFile(LM, EM, file)
 
-    ## CORRECT FILES IN FOLDER
-    # traverse recursively folder
-    for folder in input["directories"]:
-        try:
-            for root, subdirs, files in os.walk(folder):
-                for f in files:
-                    if not ".corrected" in f:
-                        if root[-1] != "/":
-                            root+="/"
-                    #correctFile(LM, EM, root + f, dfksilfjaoisdjfoisdjafi jip    )
-        except IOError:
-            print("Did really mean {0}?".format(folder))
 
 
+def correctFile(LM, EM, file_name, new_DESTINATION_DIR=""):
 
-def correctFile(LM, EM, file_name, new_DESTINATION_DIR = ""):
-    try:
-        with open(file_name) as file:
+    data = open(file_name).read()
 
-            # TODO READ WHOLE FILE GOOD?
+    # Generate new document name
+    new_file_name = str(file_name)
+    # Separates file endings and initial dots like '.\file.txt'
+    splitted_file_name = [comp for comp in new_file_name.split(".") if comp]
 
-            data = file.read()
+    if not OVERWRITE:
+        new_file_name = splitted_file_name[0] + '_corrected' + ''.join('.' + n for n in splitted_file_name[1:])
+
+    print("New file name:", new_file_name)
+
+
+    with open(Path('.\\' + new_file_name), "w") as fileOut:
+
+        fileOut.write(correctPlainText(LM, EM, data))
+
+        # TODO subdirectories werden nicht mit in den output folder übernommen ->
+
+        # TODO READ WHOLE FILE GOOD?
 
             ## TODO MIT DEN DREI ZEILEN UNTER KANN MAN DIE DATEI DIREKT ÜBERSCHREIBEN:
-            ## VORSICHT: XML TAGS WERDEN AUCH ÜBERSCHREIBEN
+            ## TODO VORSICHT: XML TAGS WERDEN AUCH ÜBERSCHREIBEN
 
 
-            file.seek(0)
-            file.truncate()
-            file.write("Und weg ist alles!")
+            #file.seek(0)
+            #file.truncate()
+            #file.write("Und weg ist alles!")
 
 
-
-
-
-            # create output document
-            new_file_name = file_name
-            if not OVERWRITE:
-                new_file_name = file_name[::-1].replace("."[::-1],".corrected."[::-1], 1)[::-1]
-            if new_file_name.endswith("."):
-                new_file_name = new_file_name[:-1]
-
-            print("->",new_file_name)
-            with open(new_file_name, "w") as fileOut:
-                fileOut.write(correctPlainText(LM, EM, data))
-
-    except IOError as e:
-        print("File {0} not found.".format(file_name))
 
 
 
 
 def main(alreadyGenerated):
 
-    LM, EM = train()
-
     args = readArguments()
-    LM2, EM2, correction_input = process_arguments(args)
 
-    return
+    LM, EM, correction_input = process_arguments(args)
 
-
-
-
-    process_correction_input(correction_input, LM, EM)
+    process_correction_input(LM, EM, correction_input)
 
     print()
-    return
-
 
     if not args.correct:
         correctionPrompt(LM,EM)
+
+
+    return
+
+
+
+
+
 
     #LM, EM = reTrain()
 
