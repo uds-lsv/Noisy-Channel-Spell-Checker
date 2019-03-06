@@ -2453,8 +2453,6 @@ def process_arguments(args):
 
     ## META
 
-    global OVERWRITE
-    OVERWRITE = args.overwrite
 
     global DESTINATION_DIR
     DESTINATION_DIR = os.path.join(args.output)
@@ -2463,6 +2461,13 @@ def process_arguments(args):
     if not os.path.exists(DESTINATION_DIR):
         os.makedirs(DESTINATION_DIR)
 
+
+    global OVERWRITE
+    OVERWRITE = args.overwrite
+
+    # if overwrite option has been set we do not need an output folder.
+    if OVERWRITE:
+        DESTINATION_DIR = ''
 
     ### TRAINING
 
@@ -2638,26 +2643,18 @@ def correctFile(LM, EM, file_name, new_DESTINATION_DIR=""):
     if not OVERWRITE:
         new_file_name = splitted_file_name[0] + '_corrected' + ''.join('.' + n for n in splitted_file_name[1:])
 
-    print("New file name:", new_file_name)
+        target = Path(os.path.join(DESTINATION_DIR, new_file_name))
+        target_path, target_filename = os.path.split(target)
 
+        if not os.path.exists(target_path):
+            os.makedirs(target_path)
 
-    with open(Path('.\\' + new_file_name), "w") as fileOut:
+        with open(target, "w") as fileOut:
 
-        fileOut.write(correctPlainText(LM, EM, data))
-
-        # TODO subdirectories werden nicht mit in den output folder übernommen ->
-
-        # TODO READ WHOLE FILE GOOD?
-
-            ## TODO MIT DEN DREI ZEILEN UNTER KANN MAN DIE DATEI DIREKT ÜBERSCHREIBEN:
-            ## TODO VORSICHT: XML TAGS WERDEN AUCH ÜBERSCHREIBEN
-
-
-            #file.seek(0)
-            #file.truncate()
-            #file.write("Und weg ist alles!")
-
-
+            fileOut.write(correctPlainText(LM, EM, data))
+    else:
+        open(file_name, 'w').write(correctPlainText(LM, EM, data))
+        ## TODO VORSICHT: XML TAGS WERDEN AUCH ÜBERSCHREIBEN
 
 
 
@@ -2674,7 +2671,6 @@ def main(alreadyGenerated):
 
     if not args.correct:
         correctionPrompt(LM,EM)
-
 
     return
 
