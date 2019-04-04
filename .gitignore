@@ -1,7 +1,7 @@
 # PyCharm
 .idea/
 
-# ignore all folders
+# ignore all folders except data/
 */
 !data/
 

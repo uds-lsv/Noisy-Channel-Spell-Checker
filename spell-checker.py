@@ -25,7 +25,7 @@ SMOOTH_EM = 0.0001
 PRIOR_WEIGHT = 1.25
 
 # supports N = {1, 2 ,3}
-N_GRAM = 1
+N_GRAM = 2
 DISTANCE_LIMIT = 2
 COUNT_THRESHOLD = 2
 
@@ -43,7 +43,7 @@ VERBOSE = False
 
 SKIP_HTML = False
 EVALUATE_ROYAL_SOCIETY_CORPUS = False
-
+DATA_DIR = 'data'
 
 
 
@@ -117,7 +117,7 @@ class LanguageModelOLD(dict):
     def __init__(self, newInstance):
 
         if not newInstance:
-            for line in open("data/LanguageModel.count", "r", encoding="iso-8859-1"):
+            for line in open(Path(os.path.join(DATA_DIR, "LanguageModel.count")) , "r", encoding="iso-8859-1"):
                 line = line.split()
 
                 #self.setProperty( " ".join(line[0:-1]) , int(line[-1]))
@@ -178,52 +178,64 @@ class LanguageModelOLD(dict):
 
 class LanguageModel(dict):
 
-    N_uni = 0
-    N_bi = 0
-    N_tri = 0
+    #N_uni = 0
+    #N_bi = 0
+    #N_tri = 0
     vocab = {}
 
 
     def __init__(self, arpa_file=None):
+
+        # Load LM with predefined arpa file
         if arpa_file is not None:
             arpa = open(arpa_file, "r", encoding="iso-8859-1")
-        else:
-            arpa = open("data/LM" + str(N_GRAM) + ".lm", "r", encoding="iso-8859-1")
 
+        # Trained an own language model beforehand or use already available default LM.
+        else:
+            try:
+                arpa = open(Path(TARGET_LANGUAGE_MODEL), "r", encoding="iso-8859-1")
+            except FileNotFoundError:
+                raise FileNotFoundError("{} is not an appropriate language model .".format(TARGET_LANGUAGE_MODEL))
+
+        # TODO check parsing
 
         while arpa.readline().strip() != "\\data\\":
             continue
 
-        numberNGrams = [0, 0, 0]
+        # Extract how many 1-grams, 2-grams,... there are
+        numberNGrams = []
         for i in range(N_GRAM):
-            numberNGrams[i] = ( int(arpa.readline().strip().split("=")[1] ) )
-        self.N_uni = numberNGrams[0]
-        self.N_bi = numberNGrams[1]
-        self.N_tri = numberNGrams[2]
+            numberNGrams.append( int(arpa.readline().strip().split("=")[1] ) )
 
-        n = 0
+        #self.N_uni = numberNGrams[0]
+        #self.N_bi = numberNGrams[1]
+        #self.N_tri = numberNGrams[2]
+
+        order_counter = 0
         while True:
 
             try:
                 line = arpa.readline().split()
             except:
-                raise ValueError(line)
+                raise ValueError("{0} is not well formated, crashed at line {1}.".format(TARGET_LANGUAGE_MODEL," ".join(line)))
 
 
 
             if line:
                 if line[0] == "\\end\\":
                     break
-                elif "-grams:" in line[0]:
-                    n+=1
-                elif n < N_GRAM:
-                    try:
-                        self[ " ".join(line[1:n+1])] = (float(line[0]), float(line[n+1]))
-                    except IndexError:
-                        self[ " ".join(line[1:n+1]) ] = (float(line[0]), )
 
-                elif n == N_GRAM:
-                    self[ " ".join(line[1:n+1]) ] = (float(line[0]), )
+                elif "-grams:" in line[0]:
+                    order_counter += 1
+
+                elif order_counter < N_GRAM:
+                    try:
+                        self[ " ".join(line[1:order_counter+1])] = (float(line[0]), float(line[order_counter+1]))
+                    except IndexError:
+                        self[ " ".join(line[1:order_counter+1]) ] = (float(line[0]), )
+
+                elif order_counter == N_GRAM:
+                    self[ " ".join(line[1:order_counter+1]) ] = (float(line[0]), )
 
     @memo2
     def __call__(self, current, prev2=None, prev1=None):
@@ -656,7 +668,7 @@ def buildLanguageModel(alreadyGenerated=False, TestSet = True):
     # TODO change that
         subprocess.call("./ngram-count   -vocab vocabulary.count   -order "+str(N_GRAM)+"   -no-eos -no-sos    -text corpus.txt  -unk   -write count"+str(N_GRAM)+".count", shell=True)
 
-
+        # TODO set DEFAULT_LM here
 
 
         print("created COUNT File")
@@ -2380,7 +2392,7 @@ def readArguments():
 
     ## TRAINING
     parser.add_argument("--arpa",  metavar="LM",  help='ARPA file to instantiate the language model, skips LM training')
-    parser.add_argument("-lm","--languagemodel", default="LM.arpa",  metavar="LM", help=' Filename to determine where to store the trained, arpa-formated language model. ')
+    parser.add_argument("-lm","--languagemodel", default=os.path.join(DATA_DIR, "LM1.arpa"),  metavar="LM", help=' Filename to determine where to store the trained, arpa-formated language model. ')
     parser.add_argument("-tr","--train", nargs="+",metavar="DATA",  help='Training files to train a language model. You can enter file(s) or entire folder(s).')
 
 
@@ -2486,8 +2498,8 @@ def process_arguments(args):
 
 
 
-    if args.languagemodel is not None:
-        TARGET_LANGUAGE_MODEL = args.languagemodel
+    global TARGET_LANGUAGE_MODEL
+    TARGET_LANGUAGE_MODEL = args.languagemodel
 
     global QUIET
     QUIET = args.quiet
@@ -2523,10 +2535,9 @@ def process_arguments(args):
                 print(data, "is neither a file nor a directory")
 
 
-
         print("Files", file_container)
 
-        # TODO train
+        # TODO train for each file
         LM = None
 
 
@@ -2669,7 +2680,7 @@ def main(alreadyGenerated):
 
     print()
 
-    if not args.correct:
+    if args.correct is None:
         correctionPrompt(LM,EM)
 
     return
