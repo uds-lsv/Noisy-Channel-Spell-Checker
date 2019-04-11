@@ -25,7 +25,7 @@ SMOOTH_EM = 0.0001
 PRIOR_WEIGHT = 1.25
 
 # supports N = {1, 2 ,3}
-N_GRAM = 2
+N_GRAM = 1
 DISTANCE_LIMIT = 2
 COUNT_THRESHOLD = 2
 
@@ -77,6 +77,14 @@ def memo2(f):
     def fmemo(*args):
         try:
             args[1]  # throws Exception
+
+            # this block is necessary to give functions with a history list a special treatment
+            try:
+                if isinstance(args[2], list):
+                    args = (args[0], args[1], " ".join(args[2]))
+            except IndexError:
+                pass
+
             if args[1:] not in fmemo.cache:
                 fmemo.cache[args[1:]] = f(*args)
             return fmemo.cache[args[1:]]
@@ -238,11 +246,11 @@ class LanguageModel(dict):
                     self[ " ".join(line[1:order_counter+1]) ] = (float(line[0]), )
 
     @memo2
-    def __call__(self, current, prev2=None, prev1=None):
+    def __call__(self, current, history):
 
 
 
-        ### replace unknown tokens with <unk>
+        # replace unknown tokens with <unk>
 
         if not current in self.vocab:
 
@@ -254,49 +262,41 @@ class LanguageModel(dict):
             current = "<unk>"
         s = current
 
-        if prev2:
-            if not prev2 in self.vocab:
-                prev2 = "<unk>"
 
+        # replace unknown words in history with UNK token
+        for i in range(len(history)):
+            if history[i] not in self.vocab:
+                history[i] = '<unk>'
 
-            s = prev2 + " " + s
-        if prev1:
-            if not prev1 in self.vocab:
-                prev1 = "<unk>"
+        s = " ".join(history) + " " + s if history else  s
 
-
-            s = prev1 + " " + s
 
 
         ###  d : (prob, backoff)  ###
 
-
-
         if s in self:
 
+            # add some extra ballast if word is unknown
             unk = log10(1./OOV) if current == "<unk>" else 0
 
-
             return self[s][0] + unk
+
+        # n-gram not seen: backoff
         else:
+            return self(current, history[1:]) + self.backoff(history)
 
-            if prev1:
-                return self(current, prev2)  + self.backoff(prev2, prev1)
-            else:
-                return self(current)  + self.backoff(prev2)
+    def backoff(self, history):
 
+        s = " ".join(history)
 
-    def backoff(self, prev2, prev1=None):
-        s = prev1 + " " + prev2 if prev1 else prev2
         try:
             return self.get(s)[1]
         except:
-            #print("NOT ABLE TO COMPUTE BACKOFF", prev1, prev2)
             return 0
 
-
-    def setVocabulary(self,voc):
+    def setVocabulary(self, voc):
         self.vocab = voc
+
     def getVocabulary(self):
         return self.vocab
 
@@ -1102,19 +1102,16 @@ def edProb(EM, edits):
     return sum(log10(EM(e)) for e in edits.split('<>'))
 
 
-def assignPredecessors(prev2, current):
+def assignPredecessors(history, current):
     global N_GRAM
+    history.append(current)
+    history = history[len(history) - N_GRAM + 1:]
 
-    if N_GRAM == 2:
-        return None, current
-    elif N_GRAM == 3:
-        return prev2, current
-    else:
-        return None, None
+    return history
 
 
 
-def correct(Vocabulary, LM, EM, text, previous2=None, previous1=None):
+def correct(Vocabulary, LM, EM, text, history):
     global blackList
     tag_blackList = ["SENT", ",", ":", "``", "''", "(", ")", "SYM"]
     tokens = [c.split() for c in text.split('\n') if c]
@@ -1125,7 +1122,7 @@ def correct(Vocabulary, LM, EM, text, previous2=None, previous1=None):
 
         ## some tags do not need a correction, like interpunctions
         if t[1] in tag_blackList:
-            previous1, previous2 = assignPredecessors(previous2, t[0])
+            history = assignPredecessors(history, t[0])
             continue
 
         if t[0] in blackList:
@@ -1139,11 +1136,6 @@ def correct(Vocabulary, LM, EM, text, previous2=None, previous1=None):
             else:
                 t[0], t[1], t[2] = blackList[t[0]], t[1], t[2]
 
-
-        #####################################################################
-        #previous1, previous2 = assignPredecessors(previous2, t[0])			#
-        #continue															#
-        #####################################################################
 
 
         prefix = ""
@@ -1159,30 +1151,26 @@ def correct(Vocabulary, LM, EM, text, previous2=None, previous1=None):
         maxi = -np.inf
         for c in edits(Vocabulary, EM, t[0]):
 
-            res = LM(c, previous2, previous1) * PRIOR_WEIGHT + editProbability(EM, t[0], c)
+            res = LM(c, history) * PRIOR_WEIGHT + editProbability(EM, t[0], c)
             if res > maxi:
                 maxi = res
                 correctedWord = c
 
-        previous1, previous2 = assignPredecessors(previous2, t[0])
+        history = assignPredecessors(history, t[0])
 
         t[0], t[1], t[2] = prefix + correctedWord + suffix, t[1], t[2]
 
-    return "\n" + '\n'.join(['\t'.join(t) for t in tokens]) + "\n", previous1, previous2
+    return "\n" + '\n'.join(['\t'.join(t) for t in tokens]) + "\n", history
 
 
+def correct_plain_text(LM, EM, tokens, history=[]):
 
-
-
-def correctPlainText(LM, EM, tokens, previous2=None, previous1=None):
-
-    Vocabulary = LM.getVocabulary()
+    vocabulary = LM.getVocabulary()
 
     if not isinstance(tokens, (list,)):
         tokens = [c for c in tokens.split()]
 
     for i, t in enumerate(tokens):
-
 
         prefix = ""
         suffix = ""
@@ -1194,32 +1182,20 @@ def correctPlainText(LM, EM, tokens, previous2=None, previous1=None):
                 suffix = t[-1]
                 t = t[:-1]
 
-
         maxi = -np.inf
-        for c in edits(Vocabulary, EM, t):
+        for c in edits(vocabulary, EM, t):
 
-            res = LM(c, previous2, previous1) * PRIOR_WEIGHT + editProbability(EM, t, c)
+            res = LM(c, history) * PRIOR_WEIGHT + editProbability(EM, t, c)
             if res > maxi:
                 maxi = res
-                correctedWord = c
+                corrected_word = c
 
+        history = assignPredecessors(history, t)
 
-        previous1, previous2 = assignPredecessors(previous2, t)
-
-        t = prefix + correctedWord + suffix
+        t = prefix + corrected_word + suffix
         tokens[i] = t
 
     return ' '.join(t for t in tokens)
-
-
-
-
-
-
-
-
-
-
 
 
 @memo3
@@ -1449,7 +1425,7 @@ def metrics(A_, B_, text_):
 
 def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
 
-    previous1, previous2 = None, None
+    history = []
     count = 0
 
     if TestSet:
@@ -1465,7 +1441,7 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
     try:
         tree = ET.ElementTree(file=path)
     except IOError:
-        print("FILE NOT FOUND !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! " + fileName)
+        print("FILE NOT FOUND ! " + fileName)
         return
 
     root = tree.getroot()
@@ -1475,7 +1451,7 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
         count += 1
 
         if child.text is not None:
-            child.text, previous1, previous2 = correct(Vocabulary, LM, EM, child.text, previous2, previous1)
+            child.text, history = correct(Vocabulary, LM, EM, child.text, history)
 
 
         ## quick and dirty method to reset cache if RAM is too full
@@ -2392,8 +2368,8 @@ def readArguments():
 
     ## TRAINING
     parser.add_argument("--arpa",  metavar="LM",  help='ARPA file to instantiate the language model, skips LM training')
-    parser.add_argument("-lm","--languagemodel", default=os.path.join(DATA_DIR, "LM1.arpa"),  metavar="LM", help=' Filename to determine where to store the trained, arpa-formated language model. ')
-    parser.add_argument("-tr","--train", nargs="+",metavar="DATA",  help='Training files to train a language model. You can enter file(s) or entire folder(s).')
+    parser.add_argument("-lm", "--languagemodel", default=os.path.join(DATA_DIR, "LM1.arpa"),  metavar="LM", help=' Filename to determine where to store the trained, arpa-formated language model. ')
+    parser.add_argument("-tr", "--train", nargs="+",metavar="DATA",  help='Training files to train a language model. You can enter file(s) or entire folder(s).')
 
 
     group2 = parser.add_mutually_exclusive_group()
@@ -2622,7 +2598,7 @@ def correctionPrompt(LM, EM):
         if inputText == "quit()":
             break
         else:
-            print(correctPlainText(LM, EM, inputText))
+            print(correct_plain_text(LM, EM, inputText))
     return
 
 
@@ -2634,7 +2610,7 @@ def process_correction_input(LM, EM, input):
         return
 
     ## CORRECT DIRECT INPUT
-    print(correctPlainText(LM, EM, input["tokens"]))
+    print(correct_plain_text(LM, EM, input["tokens"]))
 
     ## CORRECT FILE
     for file in input["files"]:
@@ -2662,11 +2638,10 @@ def correctFile(LM, EM, file_name, new_DESTINATION_DIR=""):
 
         with open(target, "w") as fileOut:
 
-            fileOut.write(correctPlainText(LM, EM, data))
+            fileOut.write(correct_plain_text(LM, EM, data))
     else:
-        open(file_name, 'w').write(correctPlainText(LM, EM, data))
+        open(file_name, 'w').write(correct_plain_text(LM, EM, data))
         ## TODO VORSICHT: XML TAGS WERDEN AUCH ÜBERSCHREIBEN
-
 
 
 
@@ -2681,7 +2656,7 @@ def main(alreadyGenerated):
     print()
 
     if args.correct is None:
-        correctionPrompt(LM,EM)
+        correctionPrompt(LM, EM)
 
     return
 
