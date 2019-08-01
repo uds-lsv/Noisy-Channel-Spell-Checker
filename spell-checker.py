@@ -18,13 +18,11 @@ import argparse
 from pathlib import Path
 
 
-
 VERSION = "1.0.0"
 SMOOTH_LM = 1e-06
 SMOOTH_EM = 0.0001
 PRIOR_WEIGHT = 1.25
 
-# supports N = {1, 2 ,3}
 N_GRAM = 1
 DISTANCE_LIMIT = 2
 COUNT_THRESHOLD = 2
@@ -44,9 +42,8 @@ VERBOSE = False
 SKIP_HTML = False
 EVALUATE_ROYAL_SOCIETY_CORPUS = False
 DATA_DIR = 'data'
-
-
-
+SRILM_PATH = ""
+NUM_CORES = max(1,multiprocessing.cpu_count()-1)
 
 " Caching System "
 
@@ -186,64 +183,50 @@ class LanguageModelOLD(dict):
 
 class LanguageModel(dict):
 
-    #N_uni = 0
-    #N_bi = 0
-    #N_tri = 0
     vocab = {}
 
 
     def __init__(self, arpa_file=None):
 
         # Load LM with predefined arpa file
-        if arpa_file is not None:
+        if arpa_file:
             arpa = open(arpa_file, "r", encoding="iso-8859-1")
 
-        # Trained an own language model beforehand or use already available default LM.
-        else:
-            try:
-                arpa = open(Path(TARGET_LANGUAGE_MODEL), "r", encoding="iso-8859-1")
-            except FileNotFoundError:
-                raise FileNotFoundError("{} is not an appropriate language model .".format(TARGET_LANGUAGE_MODEL))
 
-        # TODO check parsing
+            while arpa.readline().strip() != "\\data\\":
+                continue
 
-        while arpa.readline().strip() != "\\data\\":
-            continue
+            # Extract how many 1-grams, 2-grams,... there are
+            numberNGrams = []
+            for i in range(N_GRAM):
+                numberNGrams.append( int(arpa.readline().strip().split("=")[1] ) )
 
-        # Extract how many 1-grams, 2-grams,... there are
-        numberNGrams = []
-        for i in range(N_GRAM):
-            numberNGrams.append( int(arpa.readline().strip().split("=")[1] ) )
+            order_counter = 0
+            while True:
 
-        #self.N_uni = numberNGrams[0]
-        #self.N_bi = numberNGrams[1]
-        #self.N_tri = numberNGrams[2]
-
-        order_counter = 0
-        while True:
-
-            try:
-                line = arpa.readline().split()
-            except:
-                raise ValueError("{0} is not well formated, crashed at line {1}.".format(TARGET_LANGUAGE_MODEL," ".join(line)))
+                try:
+                    line = arpa.readline().split()
+                except:
+                    raise ValueError("{0} is not well formated, crashed at line {1}.".format(arpa_file," ".join(line)))
 
 
 
-            if line:
-                if line[0] == "\\end\\":
-                    break
+                if line:
+                    if line[0] == "\\end\\":
+                        break
 
-                elif "-grams:" in line[0]:
-                    order_counter += 1
+                    elif "-grams:" in line[0]:
+                        order_counter += 1
 
-                elif order_counter < N_GRAM:
-                    try:
-                        self[ " ".join(line[1:order_counter+1])] = (float(line[0]), float(line[order_counter+1]))
-                    except IndexError:
+                    elif order_counter < N_GRAM:
+                        try:
+                            self[ " ".join(line[1:order_counter+1])] = (float(line[0]), float(line[order_counter+1]))
+                        except IndexError:
+                            self[ " ".join(line[1:order_counter+1]) ] = (float(line[0]), )
+
+                    elif order_counter == N_GRAM:
                         self[ " ".join(line[1:order_counter+1]) ] = (float(line[0]), )
 
-                elif order_counter == N_GRAM:
-                    self[ " ".join(line[1:order_counter+1]) ] = (float(line[0]), )
 
     @memo2
     def __call__(self, current, history):
@@ -407,308 +390,121 @@ def getBigrams(word):
 
 
 
-def buildLanguageModelOLD(alreadyGenerated=False):
-
-
-    Unigrams = {}
-    Bigrams = {}
-
-
-    Vocabulary = {}
-
-    if alreadyGenerated:
-
-
-        LM = LanguageModelOLD(False)
-
-
-        for line in open("data/unigrams.count", "r", encoding="iso-8859-1"):
-            uniList = line.split('\t')
-            Unigrams[uniList[0]] = int(uniList[1])
-
-        for line in open("data/bigrams.count", "r", encoding="iso-8859-1"):
-            biList = line.split('\t')
-            Bigrams[biList[0]] = int(biList[1])
-
-        #for line in open("data/trigrams.count", "r", encoding="iso-8859-1"):
-        #	triList = line.split('\t')
-        #	Trigrams[triList[0]] = int(triList[1])
-
-        for line in open("data/vocabulary.count", "r", encoding="iso-8859-1"):
-            voc = line.split('\t')
-            Vocabulary[voc[0]] = int(voc[1])
-
-        LM.setVocabulary(Vocabulary)
-
-
-
-    else:
-
-        LM = LanguageModelOLD(True)
-
-
-        num_lines = sum(1 for _ in open("data/training_data.txt", "r", encoding="utf8"))
-
-        trainData = open("data/training_data.txt", "r", encoding="utf8")
-        count = 0
-
-        for line in trainData:
-            path = getPath(line)
-
-            previous1, previous2 = None, None
-
-            try:
-                tree = ET.ElementTree(file=path)
-            except IOError:
-                continue
-
-            root = tree.getroot()
-
-            for child in root.getchildren():
-                if child.text is not None:
-                    tokens = [c.split() for c in child.text.split('\n') if c]
-                    for t in tokens:
-
-                        # fill character unigrams
-                        for uni in getUnigrams(t[0]):
-                            Unigrams[uni] = Unigrams.get(uni, 0) + 1
-
-                        # fill character bigrams
-                        for bi in getBigrams(t[0]):
-                            Bigrams[bi] = Bigrams.get(bi, 0) + 1
-
-                        # fill character trigrams
-                        #for tri in getTrigrams(t[0]):
-                        #	Trigrams[tri] = Trigrams.get(tri, 0) + 1
-
-
-
-                        # fill Language Model ( Word-{Unigrams, Bigrams,Trigrams} )
-                        #LM.setProperty(t[0], 1)
-                        LM[t[0]] = LM.get(t[0], 0) + 1
-                        Vocabulary[t[0]] = Vocabulary.get(t[0], 0) + 1
-                        LM.increaseN(1)
-
-                        if N_GRAM > 1 and previous2:
-                            #LM.setProperty(previous2+" "+t[0], 1)
-                            LM[previous2+" "+t[0]] = LM.get(previous2+" "+t[0], 0) + 1
-
-                        if N_GRAM > 2 and previous1 and previous2:
-                            #LM.setProperty(previous1+" "+previous2+" "+t[0], 1)
-                            LM[previous1+" "+previous2+" "+t[0]] = LM.get(previous1+" "+previous2+" "+t[0], 0) + 1
-
-                        previous1 = previous2
-                        previous2 = t[0]
-
-
-            count += 1
-            sys.stdout.write('\r' + str(count) + " / " + str(num_lines))
-            sys.stdout.flush()
-
-
-
-
-
-
-        for key in [k for k,v in Vocabulary.items() if v]:
-            if Vocabulary[key] < COUNT_THRESHOLD:
-                del Vocabulary[key]
-
-
-        sorted_voc = sorted(Vocabulary, key=Vocabulary.get, reverse=True)
-        voc = open("data/vocabulary.count", "w", encoding="iso-8859-1")
-        for key in sorted_voc:
-            voc.write(key+"	"+str(Vocabulary[key])+"\n")
-        voc.close()
-
-        LM.setVocabulary(Vocabulary)
-
-
-
-
-
-        print('\n')
-
-        sorted_LM = sorted(LM, key=LM.get, reverse=True)
-        sorted_uni = sorted(Unigrams, key=Unigrams.get, reverse=True)
-        sorted_bigr = sorted(Bigrams, key=Bigrams.get, reverse=True)
-        #sorted_tri = sorted(Trigrams, key=Trigrams.get, reverse=True)
-
-        unigr = open("data/unigrams.count", "w", encoding="iso-8859-1")
-        for key in sorted_uni:
-            unigr.write(key + "	" + str(Unigrams[key]) + '\n')
-        unigr.close()
-
-        bigr = open("data/bigrams.count", "w", encoding="iso-8859-1")
-        for key in sorted_bigr:
-            bigr.write(key + "	" + str(Bigrams[key]) + '\n')
-        bigr.close()
-
-        #tri = open("data/trigrams.count", "w")
-        #for key in sorted_tri:
-        #	tri.write(key + "	" + str(Trigrams[key]) + '\n')
-        #tri.close()
-
-
-        out = open("data/LanguageModel.count", "w", encoding="iso-8859-1")
-
-        for key in sorted_LM:
-            out.write(key + "	" + str(LM[key]) + '\n')
-        out.close()
-
-    return LM, Unigrams, Bigrams
-
-def buildLanguageModel(alreadyGenerated=False, TestSet = True):
+def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
 
     Unigrams = {}
     Bigrams = {}
-    #Trigrams = {}
+    # Trigrams = {}
 
     Vocab = {}
 
-    if alreadyGenerated:
 
-        LM = LanguageModel()
+    if arpa_file:
 
-        for line in open("data/unigrams.count", "r", encoding="iso-8859-1"):
+        LM = LanguageModel(arpa_file)
+
+        for line in open(os.path.join(Path(DATA_DIR, "unigrams.count")), "r", encoding="iso-8859-1"):
             uniList = line.split('\t')
             Unigrams[uniList[0]] = int(uniList[1])
 
-        for line in open("data/bigrams.count", "r", encoding="iso-8859-1"):
+        for line in open(os.path.join(Path(DATA_DIR, "bigrams.count")), "r", encoding="iso-8859-1"):
             biList = line.split('\t')
             Bigrams[biList[0]] = int(biList[1])
 
-        #for line in open("data/trigrams.count", "r", encoding="iso-8859-1"):
-        #triList = line.split('\t')
-        #Trigrams[triList[0]] = int(triList[1])
-
-        for line in open("data/vocabulary.count", "r", encoding="iso-8859-1"):
+        for line in open(os.path.join(Path(DATA_DIR, "vocabulary.count")), "r", encoding="iso-8859-1"):
             vocList = line.split('\t')
             Vocab[vocList[0]] = int(vocList[1])
 
         LM.setVocabulary(Vocab)
 
-    else:
+    elif files:
 
-        num_lines = sum(1 for _ in open("data/training_data.txt", "r", encoding="utf8"))
-
-        trainData = open("data/training_data.txt", "r", encoding="utf8")
-        count = 0
-
-        corpus = open("data/corpus.txt", "w", encoding="iso-8859-1")
-
-        for line in trainData:
-            linebreaker = 0
-
-            if TestSet:
-                path = getPath(line)
-            else:
-                path = 'data/CorrectedCorpus/' + line.split()[0][:-1] + ".xml.tagged"
+        corpus = open(os.path.join(Path(DATA_DIR, "corpus.txt")), "w", encoding="iso-8859-1")
 
 
-            try:
-                tree = ET.ElementTree(file=path)
-            except IOError:
-                continue
+        for f in files:
+            with open(Path(f), "r") as file:
+                text = file.read()
 
-            root = tree.getroot()
+                tokens = [c.split()[0] for c in text.split('\n') if c]
+                for t in tokens:
 
-            for child in root.getchildren():
-                if child.text is not None:
-                    tokens = [c.split()[0] for c in child.text.split('\n') if c]
-                    for t in tokens:
+                # fill character unigrams
+                    for uni in getUnigrams(t):
+                        Unigrams[uni] = Unigrams.get(uni, 0) + 1
 
-                        # fill character unigrams
-                        for uni in getUnigrams(t):
-                            Unigrams[uni] = Unigrams.get(uni, 0) + 1
+                # fill character bigrams
+                    for bi in getBigrams(t):
+                        Bigrams[bi] = Bigrams.get(bi, 0) + 1
 
-                        # fill character bigrams
-                        for bi in getBigrams(t):
-                            Bigrams[bi] = Bigrams.get(bi, 0) + 1
+                    Vocab[t] = Vocab.get(t, 0) + 1
 
-                        ## fill character trigrams
-                        #for tri in getTrigrams(t):
-                        #Trigrams[tri] = Trigrams.get(tri, 0) + 1
+                corpus.write(text + "\n")
 
-                        Vocab[t] = Vocab.get(t, 0) + 1
-
-                        corpus.write(t + " ")
-
-                linebreaker+=1
-                if linebreaker % 50  == 0:
-                    corpus.write("\n")
-
-
-
-            corpus.write("\n")
-
-
-            count += 1
-            sys.stdout.write('\r' + str(count) + " / " + str(num_lines))
-            sys.stdout.flush()
         corpus.close()
-        print('\n')
+
 
         global OOV
         OOV = 0
 
-        for key in [k for k,v in Vocab.items() if v]:
+        for key in [k for k, v in Vocab.items() if v]:
             if Vocab[key] < COUNT_THRESHOLD:
                 del Vocab[key]
-                OOV+=1
+                OOV += 1
 
-        print("OOV",OOV)
+        print("OOV", OOV)
 
         sorted_voc = sorted(Vocab, key=Vocab.get, reverse=True)
-        voc = open("data/vocabulary.count", "w")
+        voc = open(os.path.join(Path(DATA_DIR, "vocabulary.count")), "w")
         for key in sorted_voc:
-            voc.write(key+"	"+str(Vocab[key])+"\n")
+            voc.write(key + "	" + str(Vocab[key]) + "\n")
         voc.close()
 
-    # TODO change that
-        subprocess.call("./ngram-count   -vocab vocabulary.count   -order "+str(N_GRAM)+"   -no-eos -no-sos    -text corpus.txt  -unk   -write count"+str(N_GRAM)+".count", shell=True)
-
-        # TODO set DEFAULT_LM here
 
 
-        print("created COUNT File")
-
-
-        smooth = ""
-        if N_GRAM != 1:
-            for i in range(N_GRAM):
-                smooth += " -kndiscount" + str(i+1) + " "
-
-
-
-        subprocess.call("./ngram-count   -vocab vocabulary.count   -order "+str(N_GRAM)+"  -unk -no-eos  -no-sos -read count"+str(N_GRAM)+".count  -lm LM"+str(N_GRAM)+".lm" + smooth, shell=True)
-        print("created LANGUAGE MODEL")
-
-        LM = LanguageModel()
-        LM.setVocabulary(Vocab)
 
         sorted_uni = sorted(Unigrams, key=Unigrams.get, reverse=True)
         sorted_bigr = sorted(Bigrams, key=Bigrams.get, reverse=True)
-        #sorted_tri = sorted(Trigrams, key=Trigrams.get, reverse=True)
 
-
-        unigr = open("data/unigrams.count", "w")
+        unigr = open(os.path.join(Path(DATA_DIR, "unigrams.count")), "w")
         for key in sorted_uni:
             unigr.write(key + "	" + str(Unigrams[key]) + '\n')
         unigr.close()
 
-        bigr = open("data/bigrams.count", "w")
+        bigr = open(os.path.join(Path(DATA_DIR, "bigrams.count")), "w")
         for key in sorted_bigr:
             bigr.write(key + "	" + str(Bigrams[key]) + '\n')
         bigr.close()
 
-    #tri = open("data/trigrams.count", "w")
-    #for key in sorted_tri:
-    #tri.write(key + "	" + str(Trigrams[key]) + '\n')
-    #tri.close()
+
+        # call SRILM
+        subprocess.call("."+ SRILM_PATH + "/ngram-count -vocab "+DATA_DIR+"/vocabulary.count   -order " + str(
+            N_GRAM) + "   -no-eos -no-sos    -text "+DATA_DIR+"/corpus.txt  -unk  -write "+DATA_DIR+"/count" + str(N_GRAM) + ".count",
+                        shell=True)
+
+        print("created COUNT File")
+
+        smooth = ""
+        if N_GRAM != 1:
+            for i in range(N_GRAM):
+                smooth += " -kndiscount" + str(i + 1) + " "
+
+        subprocess.call("."+ SRILM_PATH + "./ngram-count   -vocab "+DATA_DIR+"/vocabulary.count   -order " + str(
+            N_GRAM) + "  -unk -no-eos  -no-sos -read "+DATA_DIR+"/count" + str(N_GRAM) + ".count  -lm "+DATA_DIR+"/" +
+                        TARGET_LANGUAGE_MODEL +" " + smooth, shell=True)
+
+        print("created LANGUAGE MODEL")
+
+        LM = LanguageModel(os.path.join(Path(DATA_DIR, TARGET_LANGUAGE_MODEL)))
+        LM.setVocabulary(Vocab)
 
 
-    return LM , Unigrams, Bigrams
+    else:
+        print("Something went wrong. Please declare sources to instantiate a language model.")
+
+    return LM, Unigrams, Bigrams
+
+
 
 def GroundTruthToTxt():
 
@@ -739,7 +535,7 @@ def GroundTruthToTxt():
         root = tree.getroot()
 
         for child in root.getchildren():
-            linebreaker+=1
+            linebreaker += 1
 
             if child.text is not None:
                 tokens = [c.split()[0] for c in child.text.split('\n') if c]
@@ -918,11 +714,14 @@ def readRules():
 
 def buildBlackList():
 
-    ########
-    return
-    #######
 
     global blackList
+
+    # TODO change that
+    return  blackList
+
+
+
     file = codecs.open("data/cleanDifferences.count", "r", encoding="utf8")
     blackList = {}
 
@@ -1118,7 +917,15 @@ def correct(Vocabulary, LM, EM, text, history):
 
     i = -1
     for t in tokens:
+
         i += 1
+
+        global stopwords
+
+        if t[0] in stopwords:
+            history = assignPredecessors(history, t)
+            continue
+
 
         ## some tags do not need a correction, like interpunctions
         if t[1] in tag_blackList:
@@ -1171,6 +978,11 @@ def correct_plain_text(LM, EM, tokens, history=[]):
         tokens = [c for c in tokens.split()]
 
     for i, t in enumerate(tokens):
+
+        global stopwords
+        if t in stopwords:
+            history = assignPredecessors(history, t)
+            continue
 
         prefix = ""
         suffix = ""
@@ -1436,7 +1248,7 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
     if platform.system() == "Linux":
         path = 'data/'+test+'Origin/' + fileName.split()[0][:-1] + ".xml.tagged"
     else:
-        path = re.sub(r'/', r'\\\\', r'testSet\\Origin\\' + fileName.split()[0][:-1] + ".xml.tagged")
+        path = re.sub(r'/', r'\\\\', r'data\\testSet\\Origin\\' + fileName.split()[0][:-1] + ".xml.tagged")
 
     try:
         tree = ET.ElementTree(file=path)
@@ -1454,28 +1266,19 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
             child.text, history = correct(Vocabulary, LM, EM, child.text, history)
 
 
-        ## quick and dirty method to reset cache if RAM is too full
-        if False:#count % 30 == 0:
-            LM()
-            EM()
-            editProbability()
-            edProb()
-            edits()
-
     ## quick and dirty method to reset cache after every file
-    if True:
-        LM()
-        EM()
-        editProbability()
-        edProb()
-        edits()
+    LM()
+    EM()
+    editProbability()
+    edProb()
+    edits()
 
     if TestSet:
         tree.write(re.sub(r'Origin', r'NoisyChannel', path))
     else:
         tree.write(re.sub(r'Origin', r'CorrectedCorpus', path))
 
-    sys.stdout.write("Done!	"+fileName)
+    sys.stdout.write("[DONE] " + fileName)
     sys.stdout.flush()
 
 
@@ -1486,59 +1289,29 @@ def correctionTestSet(LM, EM):
     Vocabulary = LM.getVocabulary()
 
 
-
-    num_cores = multiprocessing.cpu_count()
-
-    num_cores -= 2
+    global NUM_CORES
 
 
-    Parallel(n_jobs=num_cores)(delayed(correctDocument)(Vocabulary, LM, EM, name) for name in testFiles)
+    Parallel(n_jobs=NUM_CORES)(delayed(correctDocument)(Vocabulary, LM, EM, name) for name in testFiles)
 
 
+# TODO file name should be directly given
+def test_file(file):
 
-def testIt(file, algorithm="<noisy>"):
     TP, TN, FP, FN = 0,0,0,0
 
-    if platform.system() == "Linux":
-        file = file.split()[0][:-1] + ".xml.tagged"
-        pathOri = r'data/testSet/Origin/' + file
-        pathGT = r'data/testSet/GroundTruth/' + file
+    path_ori = Path(os.path.join(DATA_DIR, 'testSet/Origin/', file))
+    pathGT = Path(os.path.join(DATA_DIR, 'testSet/GroundTruth/', file))
+    path = Path(os.path.join(DATA_DIR, 'testSet/NoisyChannel/', file))
 
-        if algorithm == "<rules>":
-            prefix = r'data/testSet/Rules/'
-        elif algorithm == "<noisy>":
-            prefix = r'data/testSet/NoisyChannel/'
-        elif algorithm == "<norvigUni>":
-            prefix = r'data/testSet/NorvigUnigrams/'
-        elif algorithm == "<norvigBi>":
-            prefix = r'data/testSet/NorvigBigrams/'
-        else:
-            raise ValueError("algorithm option not known!")
-        path = prefix + file
-    else:
-        file = re.sub(r'/', r'\\\\', file.split()[0][:-1] + ".xml.tagged")
-        pathOri = r'data\\testSet\\Origin\\' + file
-        pathGT = r'data\\testSet\\GroundTruth\\' + file
-
-        if algorithm == "<rules>":
-            prefix = r'testSet\\Rules\\'
-        elif algorithm == "<noisy>":
-            prefix = r'testSet\\NoisyChannel\\'
-        elif algorithm == "<norvigUni>":
-            prefix = r'testSet\\NorvigUnigrams\\'
-        elif algorithm == "<norvigBi>":
-            prefix = r'testSet\\NorvigBigrams\\'
-        else:
-            raise ValueError("algorithm option not known!")
-        path = prefix + file
 
     try:
-        treeOri = ET.ElementTree(file=pathOri)
+        treeOri = ET.ElementTree(file=path_ori)
         with open(pathGT, 'r', encoding="iso-8859-1") as f:
             treeGT = ET.parse(f)
         tree = ET.ElementTree(file=path)
     except IOError:
-        print("FILE NOT FOUND !! " + file)
+        print("FILE NOT FOUND!  " + file)
 
     rootOri = treeOri.getroot()
     rootGT = treeGT.getroot()
@@ -1564,23 +1337,24 @@ def testIt(file, algorithm="<noisy>"):
         else:
             raise Exception("There is a inconsistent amount of pages")
 
+    sys.stdout.write("[TESTED] " + file + "\n")
+    sys.stdout.flush()
+
 
     return (TP, TN, FP, FN, file)
 
 
-def testMetrics(algorithm="<noisy>"):
+def test_royal_society_corpus():
     TP, TN, FP, FN = 1, 1, 1, 1
 
-    testFiles = open("data/test_data.txt")
+    test_files = open(Path(DATA_DIR,"test_data.txt"))
 
-
-
-    data = [ (name, algorithm)  for name in [file for file in testFiles]]
+    data = [ (file.split()[0][:-1] + ".xml.tagged",)  for file in test_files]
     num_cores = multiprocessing.cpu_count()
 
     p = multiprocessing.Pool(num_cores)
 
-    for v in [ (i[0],i[1],i[2],i[3],i[4]) for i in p.starmap(testIt, data)]:
+    for v in [ (i[0],i[1],i[2],i[3],i[4]) for i in p.starmap(test_file, data)]:
 
         TP+=v[0]
         TN+=v[1]
@@ -1588,25 +1362,21 @@ def testMetrics(algorithm="<noisy>"):
         FN+=v[3]
 
 
-
-
     precision = TP / float(TP + FP)
     recall = TP / float(TP + FN)
     f_score = (2 * precision * recall) / float(precision + recall)
 
-
-    #sys.stdout.write("COMPONENTS: "+str(TP)+" "+ str(TN)+" "+ str(FP) +" "+ str(FN)+"\n")
-    #sys.stdout.flush()
+    sys.stdout.write("Precision"+"\t"+"Recall"+"\t"+"F1-Score"+"\n")
     sys.stdout.write(str(precision)+"\t"+str(recall)+"\t"+str(f_score)+"\n")
     sys.stdout.flush()
 
 
-
     return precision, recall, f_score
 
-def computePerplexity():
 
-    subprocess.call("./ngram -lm LM" + str(N_GRAM) + ".lm -unk -ppl groundTruth.txt -order "+str(N_GRAM), shell=True)
+def compute_perplexity(arguments):
+    # requirement:  textfile  +  arpa file
+    subprocess.call("." + SRILM_PATH + "/ngram -lm "+ arguments[1] +" -unk -ppl " + arguments[0], shell=True)
 
 def testChangingPercentage(algorithm="<noisy>"):
     changes, numberwords = 0, 0
@@ -1620,7 +1390,7 @@ def testChangingPercentage(algorithm="<noisy>"):
 
         if platform.system() == "Linux":
             file = file.split()[0][:-1] + ".xml.tagged"
-            pathOri = r'data/testSet/Origin/' + file
+            path_ori = r'data/testSet/Origin/' + file
 
             if algorithm == "<rules>":
                 prefix = r'data/testSet/Rules/'
@@ -1635,7 +1405,7 @@ def testChangingPercentage(algorithm="<noisy>"):
             path = prefix + file
         else:
             file = re.sub(r'/', r'\\\\', file.split()[0][:-1] + ".xml.tagged")
-            pathOri = r'testSet\\Origin\\' + file
+            path_ori = r'testSet\\Origin\\' + file
 
             if algorithm == "<rules>":
                 prefix = r'testSet\\Rules\\'
@@ -1650,7 +1420,7 @@ def testChangingPercentage(algorithm="<noisy>"):
             path = prefix + file
 
         try:
-            treeOri = ET.ElementTree(file=pathOri)
+            treeOri = ET.ElementTree(file=path_ori)
             tree = ET.ElementTree(file=path)
         except IOError:
             print("FILE NOT FOUND in changingPercentage!! " + file)
@@ -1685,451 +1455,6 @@ def testChangingPercentage(algorithm="<noisy>"):
 
 
 
-
-
-
-def computePerplexityOLD(LM):
-
-    for ngram in range(1, N_GRAM+1):
-
-        if ngram == 1:
-            print("Perplexity Unigram")
-        elif ngram == 2:
-            print("Perplexity Bigram")
-        else:
-            print("Perplexity Trigram")
-
-
-        base = 2
-        NumberWords = 0
-        logProb = 0
-
-        testFiles = open("data/test_data.txt")
-        for file in testFiles:
-
-            if platform.system() == "Linux":
-                path = 'data/testSet/GroundTruth/' + file.split()[0][:-1] + ".xml.tagged"
-            else:
-                path = 'data\\testSet\\GroundTruth\\' + re.sub(r'/', r'\\\\', file.split()[0][:-1] + ".xml.tagged")
-
-            previous1, previous2 = None, None
-
-            try:
-                with open(path, 'r', encoding="iso-8859-1") as f:
-                    tree = ET.parse(f)
-            except IOError:
-                print("FILE NOT FOUND !! " + file)
-                continue
-
-            root = tree.getroot()
-            childs = [child.text for child in root.getchildren()]
-
-            for i in range(len(childs)):
-
-                if childs[i] is not None:
-                    tmp_NW, tmp_LOGPROB, tmp_previous1, tmp_previous2 = perplexityOLD(childs[i], LM, base, ngram, previous2, previous1)
-                    NumberWords += tmp_NW
-                    logProb += tmp_LOGPROB
-                    previous1 = tmp_previous1
-                    previous2 = tmp_previous2
-
-
-        perplexityValue = base ** ((-1. / NumberWords) * logProb)
-
-        print("Perplexity:", perplexityValue)
-
-
-def perplexityOLD(text, LM, base, ngram, previous2=None, previous1=None):
-    sumWords = 0
-    logProb = 0
-
-    tokens = [c.split()[0] for c in text.split('\n') if c]
-    for t in tokens:
-
-        sumWords += 1
-        logProb += log(10**LM(t, previous2, previous1), base)
-
-
-
-        if ngram == 2:
-            previous2 = t
-        elif ngram == 3:
-            previous1 = previous2
-            previous2 = t
-
-    return sumWords, logProb, previous1, previous2
-
-
-
-def createHistograms(LM, EM):
-
-
-    def LanguageModelNoisyHistogram(LM):
-        num_lines = sum(1 for _ in open("data/test_data.txt", "r", encoding="utf8"))
-        testFiles = open("data/test_data.txt")
-
-
-        count = 0
-        if platform.system() == "Linux":
-            prefix = r'data/testSet/NoisyChannel/'
-        else:
-            prefix = r'testSet\\NoisyChannel\\'
-
-        logProbs = []
-        sumWords = 0
-
-        if platform.system() == "Linux":
-            out = open("histograms/LM_Noisy.dat", "w")
-        else:
-            out = open("histograms\\LM_Noisy.dat", "w")
-
-        for file in testFiles:
-            count += 1
-
-            file = file.split()[0][:-1] + ".xml.tagged"
-            path = prefix + file
-
-            try:
-                with open(path, 'r', encoding="iso-8859-1") as f:
-                    tree = ET.parse(f)
-            except IOError:
-                print("FILE NOT FOUND !! " + file)
-                continue
-
-            previous1 = None
-            previous2 = None
-
-            root = tree.getroot()
-            childs = [child.text for child in root.getchildren()]
-
-            for i in range(len(childs)):
-
-                if childs[i] is not None:
-
-                    tokens = [c.split()[0] for c in childs[i].split('\n') if c]
-                    for t in tokens:
-
-                        sumWords+=1
-                        logProbs.append(LM(t, previous2,previous1))
-                        out.write(str(-LM(t, previous2,previous1)) + '\n')
-
-                        previous1 = previous2
-                        previous2 = t
-
-            sys.stdout.write('\r' + str(count) + " / " + str(num_lines))
-            sys.stdout.flush()
-        print("\n")
-
-        testFiles.close()
-        out.close()
-
-
-
-        mean  = sum( -key/len(logProbs)  for key in logProbs)
-
-        variance = sum(  ((-key - mean) ** 2) / len(logProbs)    for key in logProbs)
-
-        standardDeviation = sqrt(variance)
-
-        print("NOISY LM")
-        print("Mean:", mean)
-        print("Variance:", variance)
-        print("StandardDeviation:", standardDeviation)
-
-    def ErrorModelNoisyHistogram(edits):
-
-
-        count = 0
-        num_lines = sum(1 for _ in open("test_data.txt", "r", encoding="utf8"))
-        testFiles = open("test_data.txt", "r", encoding="utf8")
-
-
-        logProbs = []
-        sumEdits = 0
-
-
-        if platform.system() == "Linux":
-            out = open("histograms/EM_Noisy.dat", "w")
-        else:
-            out = open("histograms\\EM_Noisy.dat", "w")
-
-
-        x = []
-        y = []
-
-
-        for line in testFiles:
-
-            count += 1
-
-            if platform.system() == "Linux":
-                path = r'testSet/NoisyChannel/' + line.split()[0][:-1] + ".xml.tagged"
-                pathOri = r'testSet/Origin/' + line.split()[0][:-1] + ".xml.tagged"
-            else:
-                path = r'testSet\\NoisyChannel\\' + re.sub(r'/', r'\\\\', line.split()[0][:-1] + ".xml.tagged")
-                pathOri = r'testSet\\Origin\\' + re.sub(r'/', r'\\\\', line.split()[0][:-1] + ".xml.tagged")
-
-            try:
-                tree = ET.ElementTree(file=path)
-                treeOri = ET.ElementTree(file=pathOri)
-            except IOError:
-                print("FILE NOT FOUND !!")
-                print(path)
-                continue
-
-            root = tree.getroot()
-            rootOri = treeOri.getroot()
-
-            childsOri = [child.text for child in rootOri.getchildren()]
-            childs = [child.text for child in root.getchildren()]
-
-
-
-            if not (len(childsOri) == len(childs)):
-                print("INCONSISTENT NUMBER OF CHILDS")
-
-            for i in range(len(childs)):
-
-                if childsOri[i] is not None and childs[i] is not None:
-                    A, B = TextAlignment([c.split()[0] for c in childsOri[i].split('\n') if c], [c.split()[0] for c in childs[i].split('\n') if c])
-                else:
-                    raise Exception("There is a inconsistent amount of pages")
-
-                for j in range(len(A)):
-
-                    if A[j] == B[j]:
-                        continue
-
-                    word_prob = 0
-                    countDiff = 0
-
-
-                    if A[j] == "°" or B[j] == "°" or (j+1 < len(A) and A[j+1] == "°"):
-                        continue
-
-                    for edit in alignWords(A[j], B[j]):
-                        if edit.split("|")[0] != edit.split("|")[1]:
-                            countDiff+=1
-                            print(edit, -log10(edits(edit)))
-
-
-                            if len(edit.split("|")[0]) == 3 or len(edit.split("|")[1]) == 3:
-                                print("KKKKKKKKKKKKKKKKK")
-
-
-
-                        word_prob+=log10(edits(edit))
-                    print(A[j], B[j],">>>>",countDiff,word_prob)
-                    print("---")
-
-                    x.append(-word_prob)
-                    y.append(countDiff)
-
-
-                    logProbs.append(word_prob)
-                    if -word_prob < 0:
-                        out.write(str(0) + '\n')
-                    else:
-                        out.write(str(-word_prob) + '\n')
-
-
-            sys.stdout.write('\r' + str(count) + " / " + str(num_lines))
-            sys.stdout.flush()
-        print('\n')
-
-        out.close()
-
-
-
-        # Plot
-        for i in range(len(x)):
-            print(str(x[i])+"	"+str(y[i])+'\n')
-        colors = "red"#(204,0,0)
-        area = np.pi*6
-        plt.scatter(x, y, s=area, c=colors, alpha=0.5)
-        plt.title('Scatter plot EM logProbs')
-        plt.xlabel('-logProb')
-        plt.ylabel('number correction operations')
-        plt.show()
-
-
-
-        ## WRITE TO FILE
-
-
-        mean = sum( -key / float(len(logProbs)) for key in logProbs)
-
-        variance = sum( ((-key - mean) ** 2) / len(logProbs) for key in logProbs)
-
-        standardDeviation = sqrt(variance)
-
-        print("NOISY EM")
-        print("Mean:", mean)
-        print("Variance:", variance)
-        print("StandardDeviation:", standardDeviation)
-
-
-    #LanguageModelNorvigUnigramHistogram()
-    #ErrorModelNorvigUnigramHistogram(unigrams1, bigrams1, trigrams1)
-
-    #LanguageModelNorvigBigramHistogram()
-    #ErrorModelNorvigBigramHistogram(unigrams2, bigrams2, trigrams2)
-
-    LanguageModelNoisyHistogram(LM)
-    ErrorModelNoisyHistogram(EM)
-
-
-def reTrainErrorModel(Unigrams, Bigrams):
-
-    edits = ErrorModel()
-    edits.setUnigrams(Unigrams)
-    edits.setBigrams(Bigrams)
-
-
-    count = 0
-    num_lines = sum(1 for _ in open('data/training_data.txt', "r", encoding="utf8"))
-    trainFiles = open('data/training_data.txt', "r", encoding="utf8")
-
-    for line in trainFiles:
-        count+=1
-        if platform.system() == "Linux":
-
-            path = 'data/CorrectedCorpus/' + line.split()[0][:-1] + ".xml.tagged"
-            pathOri = getOriginPath(line)+".tagged"
-        else:
-            path = 'testSet\\NoisyChannel\\' + re.sub(r'/', r'\\\\', line.split()[0][:-1] + ".xml.tagged")
-            pathOri = getOriginPath(line)+".tagged"
-
-
-        try:
-            tree = ET.ElementTree(file=path)
-            treeOri = ET.ElementTree(file=pathOri)
-        except IOError:
-            print("FILE NOT FOUND !!")
-            print(path)
-            continue
-
-        root = tree.getroot()
-        rootOri = treeOri.getroot()
-
-        childsOri = [child.text for child in rootOri.getchildren()]
-        childs = [child.text for child in root.getchildren()]
-
-        if not (len(childsOri) == len(childs)):
-            print("INCONSISTENT NUMBER OF CHILDS")
-
-        print(count)
-
-        for i in range(len(childs)):
-
-            if (childsOri[i] is None and childs[i] is None):
-                continue
-
-            if (childsOri[i] is not None and childs[i] is not None):
-
-                A, B = TextAlignment([c.split()[0] for c in childsOri[i].split('\n') if c], [c.split()[0] for c in childs[i].split('\n') if c])
-            else:
-                raise Exception("There is a inconsistent amount of pages")
-
-            for j in range(len(A)):
-                if A[j] == "°" or B[j] == "°" or (j+1 < len(A) and A[j+1] == "°"):
-                    continue
-                # TODO check wheter space insertion has a negative effect of the edits here -> should not be A[j]==° a seperate case?
-                for edit in alignWords(A[j], B[j]):
-                    edits[edit] = edits.get(edit, 0) + 1
-                if A[j] == B[j]:
-                    for c in getBigrams(A[j]):
-                        edits[c + "|" + c] = edits.get(c + "|" + c, 0) + 1
-
-
-
-
-    'MISSING UNIGRAMS / BIGRAMS'
-
-    dic = {}
-    for edit in edits:
-        spl = edit.split("|")[1]
-        if spl in edits.getUnigrams() or spl in edits.getBigrams() :
-            pass
-        else:
-            dic[spl] = dic.get(spl, 0) + edits[edit]
-    uni = open("unigrams.count", "a")
-    bi = open("bigrams.count", "a")
-    for d in dic:
-        if len(d) == 1:
-            uni.write(d + "	" + str(dic[d]) + "\n")
-            tmp = edits.getUnigrams()
-            tmp.update({d: dic[d]})
-            edits.setUnigrams(tmp)
-        elif len(d) == 2:
-            bi.write(d + "	" + str(dic[d]) + "\n")
-            tmp = edits.getBigrams()
-            tmp.update({d: dic[d]})
-            edits.setBigrams(tmp)
-    uni.close()
-    bi.close()
-
-    ## solve problem with deletion at beginning
-    summe = 0
-    for key in edits:
-        spl = key.split('|')[1]
-        if spl == ">":
-            summe += edits[key]
-    edits.setNumberDeletionAtBeginning(summe)
-
-    ## WRITE TO FILE
-    sorted_EM = sorted(edits, key=edits.get, reverse=True)
-    out = open("ocr.txt", "w")
-
-    for key in sorted_EM:
-        out.write(key + "	" + str(edits[key]) + '\n')
-    out.close()
-
-    return edits
-
-
-
-def train():
-
-
-
-    lm,  unigrams, bigrams = buildLanguageModel(True)
-    error_model = ErrorModel(unigrams, bigrams, 'ocr') # buildErrorModel(readRules(), unigrams, bigrams,True)
-
-    #lm,  unigrams, bigrams = buildLanguageModelOLD(alreadyGenerated)
-
-
-    global PREFIXES
-    PREFIXES = set(w[:i] for w in lm.getVocabulary() for i in range(len(w) + 1))
-
-    global blackList
-    blackList = buildBlackList()
-
-    print("finished Training " + '\n')
-
-    return lm, error_model
-
-
-def reTrain():
-
-
-    lm, unigrams, bigrams = buildLanguageModel(False,False)
-    em = reTrainErrorModel(unigrams, bigrams)
-
-    global PREFIXES
-    PREFIXES = set(w[:i] for w in lm.getVocabulary() for i in range(len(w) + 1))
-
-    global blackList
-    blackList = buildBlackList()
-
-
-
-    print("finished Re-Training")
-
-    return lm, em
-
-
-
 def correctCorpus(LM,EM):
 
 
@@ -2137,12 +1462,11 @@ def correctCorpus(LM,EM):
     Vocabulary = LM.getVocabulary()
 
 
-    num_cores = multiprocessing.cpu_count()
+    global NUM_CORES
 
+    data = [ (Vocabulary, LM, EM, name, False) for name in documents]
 
-    data = [ (Vocabulary, LM, EM, name, False)  for name in documents]
-
-    p = multiprocessing.Pool(num_cores)
+    p = multiprocessing.Pool(NUM_CORES)
     p.starmap(correctDocument, data)
 
 
@@ -2166,7 +1490,7 @@ def optimizeLMWeight(LM, EM):
             sys.stdout.flush()
 
             correctionTestSet(LM, EM)
-            testMetrics("<noisy>")
+            test_royal_society_corpus()
 
 
             LM()
@@ -2200,7 +1524,7 @@ def optimizeEMSmooth(LM, EM):
             sys.stdout.flush()
 
             correctionTestSet(LM, EM)
-            testMetrics("<noisy>")
+            test_royal_society_corpus()
 
 
             LM()
@@ -2230,7 +1554,7 @@ def optimizeLMSmooth(LM, EM):
             sys.stdout.flush()
 
             correctionTestSet(LM, EM)
-            testMetrics("<noisy>")
+            test_royal_society_corpus()
 
 
             LM()
@@ -2261,7 +1585,7 @@ def optimizeOOVESTIMATION(LM, EM):
 
 
             correctionTestSet(LM, EM)
-            testMetrics("<noisy>")
+            test_royal_society_corpus()
 
             LM()
             EM()
@@ -2368,7 +1692,7 @@ def readArguments():
 
     ## TRAINING
     parser.add_argument("--arpa",  metavar="LM",  help='ARPA file to instantiate the language model, skips LM training')
-    parser.add_argument("-lm", "--languagemodel", default=os.path.join(DATA_DIR, "LM1.arpa"),  metavar="LM", help=' Filename to determine where to store the trained, arpa-formated language model. ')
+    parser.add_argument("-lm", "--languagemodel", default="LM.arpa",  metavar="LM", help=' Filename to determine where to store the trained, arpa-formated language model. ')
     parser.add_argument("-tr", "--train", nargs="+",metavar="DATA",  help='Training files to train a language model. You can enter file(s) or entire folder(s).')
 
 
@@ -2395,9 +1719,9 @@ def readArguments():
     parser.add_argument('--skip_html', action='store_true', help='Ignore internal structure of HTML or XML files.')
 
     ## TEST
-    parser.add_argument("-te","--test", nargs=2,  help='Evaluates the tool on a selected pair of files. 2 Arguments: A file with misspellings included,  proper correction to examine (default: Royal Society Corpus)')
-    parser.add_argument('--royal',action='store_true',  help='Evaluates the spell checker on the sample documents from the Royal Society Corpus')
-    parser.add_argument('-ppl','--perplexity', nargs="*", help='Computes the Perplexity measure for given file(s) | folder(s)',default="groundTruth.txt")
+    parser.add_argument('-te', '--test',action='store_true',  help='Evaluates the spell checker on the sample documents from the Royal Society Corpus')
+    parser.add_argument('-ppl','--perplexity', nargs=2, help='Computes the Perplexity measure for given file and language model')
+    parser.add_argument("--num_cores","-cores", type=int, default=1,  metavar="CORES",  help='Number of cores that can be used for computations, default: N - 1  ')
 
 
     args=parser.parse_args()
@@ -2441,10 +1765,8 @@ def process_arguments(args):
 
     ## META
 
-
     global DESTINATION_DIR
     DESTINATION_DIR = os.path.join(args.output)
-    print(DESTINATION_DIR)
     # safely check for existence and create output folder
     if not os.path.exists(DESTINATION_DIR):
         os.makedirs(DESTINATION_DIR)
@@ -2460,6 +1782,7 @@ def process_arguments(args):
     ### TRAINING
 
 
+    global stopwords
     # Check whether stopwords were set
     if args.stopwords is not None:
         # Iterate over stopword instances
@@ -2487,11 +1810,15 @@ def process_arguments(args):
     SKIP_HTML = args.skip_html
 
     global EVALUATE_ROYAL_SOCIETY_CORPUS
-    EVALUATE_ROYAL_SOCIETY_CORPUS = args.royal
+    EVALUATE_ROYAL_SOCIETY_CORPUS = args.test
+
+    global NUM_CORES
+    NUM_CORES = min(NUM_CORES, args.num_cores)
+
 
 
     if args.arpa is not None and os.path.isfile(Path(args.arpa)):
-        LM = LanguageModel(arpa_file=os.path.join(Path(args.arpa)))
+        LM, unigrams, bigrams = buildLanguageModel(arpa_file=os.path.join(Path(args.arpa)))
 
     elif args.train is not None:
 
@@ -2513,23 +1840,18 @@ def process_arguments(args):
 
         print("Files", file_container)
 
-        # TODO train for each file
-        LM = None
+        LM, unigrams, bigrams = buildLanguageModel(files=file_container)
 
 
 
     else:
 
         # TODO default 2-gram *.arpa of the Royal Society Corpus
+        LM, unigrams, bigrams = buildLanguageModel(arpa_file=os.path.join(Path(DATA_DIR, "LM1.arpa")))
 
-        LM = None
+
 
     # Train Error Model
-
-    # TODO Unigrams, Bigrams from train_language model
-    unigrams = {}
-    bigrams = {}
-
 
     global OCR
     if args.typo:
@@ -2539,14 +1861,23 @@ def process_arguments(args):
         OCR = True
         EM = ErrorModel(unigrams, bigrams, 'ocr')
 
+    # Additional Recourses
 
-    #TODO   ### DELETE THAT
-    LM, EM = train()
+    global PREFIXES
+    PREFIXES = set(w[:i] for w in LM.getVocabulary() for i in range(len(w) + 1))
+
+    global blackList
+    blackList = buildBlackList()
+
+    print("finished Training " + '\n')
 
 
-    if args.perplexity is not None:
-        pass
-        # TODO compute Perplexity
+
+
+
+    if args.perplexity:
+        print("GRRRR")
+        compute_perplexity(args.perplexity)
 
 
     ### CORRECTION
@@ -2604,10 +1935,10 @@ def correctionPrompt(LM, EM):
 
 def process_correction_input(LM, EM, input):
 
+
     ## PROMPT
     if input["prompt"]:
         correctionPrompt(LM, EM)
-        return
 
     ## CORRECT DIRECT INPUT
     print(correct_plain_text(LM, EM, input["tokens"]))
@@ -2615,6 +1946,13 @@ def process_correction_input(LM, EM, input):
     ## CORRECT FILE
     for file in input["files"]:
         correctFile(LM, EM, file)
+
+
+    # correct Royal Society Corpus test set
+    global EVALUATE_ROYAL_SOCIETY_CORPUS
+    if EVALUATE_ROYAL_SOCIETY_CORPUS:
+        print("Testing the model on the Royal Society Corpus test set")
+        correctionTestSet(LM, EM)
 
 
 
@@ -2645,7 +1983,7 @@ def correctFile(LM, EM, file_name, new_DESTINATION_DIR=""):
 
 
 
-def main(alreadyGenerated):
+def main():
 
     args = readArguments()
 
@@ -2656,7 +1994,9 @@ def main(alreadyGenerated):
     print()
 
     if args.correct is None:
-        correctionPrompt(LM, EM)
+        pass
+        #TODO uncomment
+        #correctionPrompt(LM, EM)
 
     return
 
@@ -2664,94 +2004,8 @@ def main(alreadyGenerated):
 
 
 
-
-    #LM, EM = reTrain()
-
-
-
-
-    #correctCorpus(LM,EM)
-    correctionTestSet(LM, EM)
-
-
-    #for algo in ["<noisy>", "<rules>", "<norvigUni>", "<norvigBi>"]:
-    for algo in ["<noisy>"]:
-        print(">>> " + algo)
-        testMetrics(algo)
-#computePerplexity()
-
-
-#summe = 0
-#inte = "e"
-
-#for u in EM.getUnigrams():
-#summe+=EM(u+"|"+inte)
-#for b in EM.getBigrams():
-#summe+=EM(b+"|"+inte)
-#for t in EM.getTrigrams():
-#summe+=EM(t+"|"+inte)
-
-#print(summe)
-#return
-
-
-#global UNK_ESTIMATION
-#UNK_ESTIMATION = 1
-#Vocab = {k: LM.getVocabulary()[k] for k in LM.getVocabulary()}
-#Vocab.update({"<unk>":1})
-#summe = 10**LM("<s>") + 10**LM("</s>")
-
-#for v in Vocab:
-#summe+=10**LM(v)
-
-#print(summe)
-
-
-#prev="the"
-#Vocab = {k: LM.getVocabulary()[k] for k in LM.getVocabulary()}
-#Vocab.update({"<unk>":1})
-
-#summe=0
-#for key in LM:
-#l=key.split(" ")
-#if len(l) == 2 and l[0] == prev:
-#summe+=10**LM(l[1],prev)
-
-#try:
-#del Vocab[l[1]]
-#except:
-#pass
-#for v in Vocab:
-#summe+=10**LM(v,prev)
-
-#print(summe)
-
-
-#prev2="the"
-#prev1 = "SCHUBUDUBIDUBIDU"
-#Vocab = {k: LM.getVocabulary()[k] for k in LM.getVocabulary()}
-#Vocab.update({"<unk>":1})
-
-#summe=0
-#for key in LM:
-#l=key.split(" ")
-#if len(l) == 3 and l[0] == prev1 and l[1] == prev2:
-#summe+=10**LM(l[2],prev2,prev1)
-
-#try:
-#del Vocab[l[2]]
-#except:
-#pass
-#for v in Vocab:
-#summe+=10**LM(v,prev2,prev1)
-
-#print(summe)
-
-
-#return
-
 if __name__ == "__main__":
-    main(True)
+    main()
 
 
 

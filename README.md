@@ -4,6 +4,7 @@ A tool for correcting misspellings in textual input using the Noisy Channel Mode
 ## Usage
 - [ ] Clone the repository 
 - [ ] Install SRILM
+- [ ] Run ``python3 spell-checker [args]``
 
 We recommend to use a Linux operating system. On Windows systems it is also possible by porting it using Cygwin.
 
@@ -28,10 +29,10 @@ The tool can be executed by calling ``spell-checker.py``. It provides a variety 
 | **`-sw`** or **`--stopwords`**       | stopwords.file \| direct input | List of stopwords being ignored during correction |
 |      | |  |
 | **`-v`** or **`--version`**       |  | Prints version of the Noisy Channel Spell Checker. |
-| **`-q`** or **`--quit`**       | | Suppress printouts. |
+| **`-q`** or **`--quiet`**       | | Suppress printouts. |
 | **`-vb`** or **`--verbose`**       |  |  Print verbose. |
 | **`--skip_html`**   |  | Ignore internal structure of HTML or XML files. |
 |      | |  |
-| **`-te`** or **`--test`**       |  error.file  groundTruth.file | Evaluates the tool on a selected pair of files. 2 Arguments: A file with misspellings included and a proper correction to examine. (default: Royal Society Corpus) |
-| **`--royal`**      | | Evaluates the spell checker on the sample documents from the Royal Society Corpus |
-| **`-ppl`** or **`--perplexity`**       | file \| directory \| Standard Input | Computes the Perplexity measure for given file(s) \| folder(s) |
+| **`-te`** or **`--test`**`--test`**      | | Evaluates the spell checker on the sample documents from the Royal Society Corpus |
+| **`-ppl`** or **`--perplexity`**       | textfile, languagemodel.arpa \| Standard Input | Computes the Perplexity measure for given file and language model |
+| **`--num_cores`** or **`-cores`**       | Integer | Number of cores that can be used for computations, default: N - 1  |
