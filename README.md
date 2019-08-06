@@ -17,8 +17,7 @@ The tool can be executed by calling ``spell-checker.py``. It provides a variety 
 | **`-o`** or **`--output`**       | file \| directory  | Determine where to store the corrected files (per default: location of input data) |
 | **`-ow`** or **`--overwrite`**       |  | If set, all the selected documents are overwritten by its correction. |
 |      | |  |
-| **`--arpa`**      | lm.arpa | ARPA file to instantiate the language model, skips LM training  |
-| **`-lm`** or **`--languagemodel`**       | lm.arpa | Filename to determine where to store the trained, arpa-formated language model. |
+| **`-lm`** or **`--languagemodel`**       | lm.arpa | TODO: (kombi mit arpa -> datei lesen)Filename to determine where to store the trained, arpa-formated language model. |
 | **`-tr`** or **`--train`**       | file \| directory | Training files to train a language model. You can enter file(s) or entire folder(s). |
 | **`-ocr`**       |  | Use tool to post-process noisy OCR texts. **Attention:** You can either use the -ocr or the -typo option.  |
 | **`-typo`**       |  | Use tool to correct texts containing typos. |
@@ -33,6 +32,7 @@ The tool can be executed by calling ``spell-checker.py``. It provides a variety 
 | **`-vb`** or **`--verbose`**       |  |  Print verbose. |
 | **`--skip_html`**   |  | Ignore internal structure of HTML or XML files. |
 |      | |  |
-| **`-te`** or **`--test`**`--test`**      | | Evaluates the spell checker on the sample documents from the Royal Society Corpus |
+| **`-te`** or **--test`**      | | Evaluates the spell checker on the sample documents from the Royal Society Corpus |
+| **`--royal`**      | | Correct the entire Royal Society Corpus |
 | **`-ppl`** or **`--perplexity`**       | textfile, languagemodel.arpa \| Standard Input | Computes the Perplexity measure for given file and language model |
 | **`--num_cores`** or **`-cores`**       | Integer | Number of cores that can be used for computations, default: N - 1  |

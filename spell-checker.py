@@ -45,6 +45,8 @@ DATA_DIR = 'data'
 SRILM_PATH = ""
 NUM_CORES = max(1,multiprocessing.cpu_count()-1)
 
+CORRECT_RSC = False
+
 " Caching System "
 
 
@@ -423,23 +425,90 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
 
 
         for f in files:
-            with open(Path(f), "r") as file:
-                text = file.read()
 
-                tokens = [c.split()[0] for c in text.split('\n') if c]
-                for t in tokens:
+            if str(f).endswith('.xml'):
+                print("XML file")
+                path = Path(f)
 
-                # fill character unigrams
-                    for uni in getUnigrams(t):
-                        Unigrams[uni] = Unigrams.get(uni, 0) + 1
+                try:
+                    tree = ET.ElementTree(file=path)
+                except IOError:
+                    print("FILE NOT FOUND ! " + str(f))
+                    continue
 
-                # fill character bigrams
-                    for bi in getBigrams(t):
-                        Bigrams[bi] = Bigrams.get(bi, 0) + 1
+                root = tree.getroot()
 
-                    Vocab[t] = Vocab.get(t, 0) + 1
+                for child in root.getchildren():
+                    if child.text is not None:
 
-                corpus.write(text + "\n")
+                        tokens = [c for c in child.text.split() if c]
+                        for t in tokens:
+                            # fill character unigrams
+                            for uni in getUnigrams(t):
+                                Unigrams[uni] = Unigrams.get(uni, 0) + 1
+
+                            # fill character bigrams
+                            for bi in getBigrams(t):
+                                Bigrams[bi] = Bigrams.get(bi, 0) + 1
+
+                            Vocab[t] = Vocab.get(t, 0) + 1
+
+                        corpus.write(child.text + "\n")
+
+
+
+
+            elif str(f).endswith('.xml.tagged'):
+
+                path = Path(f)
+
+                try:
+                    tree = ET.ElementTree(file=path)
+                except IOError:
+                    print("FILE NOT FOUND ! " + str(f))
+                    continue
+
+                root = tree.getroot()
+
+                for child in root.getchildren():
+
+                    if child.text is not None:
+
+                        tokens = [c.split()[0] for c in child.text.split('\n') if c]
+                        for t in tokens:
+                            corpus.write(t+" ")
+                            # fill character unigrams
+                            for uni in getUnigrams(t):
+                                Unigrams[uni] = Unigrams.get(uni, 0) + 1
+
+                            # fill character bigrams
+                            for bi in getBigrams(t):
+                                Bigrams[bi] = Bigrams.get(bi, 0) + 1
+
+                            Vocab[t] = Vocab.get(t, 0) + 1
+
+                        corpus.write("\n")
+
+
+
+            # normal text file
+            else:
+                with open(Path(f), "r") as file:
+                    text = file.read()
+
+                    tokens = [c for c in text.split() if c]
+                    for t in tokens:
+                    # fill character unigrams
+                        for uni in getUnigrams(t):
+                            Unigrams[uni] = Unigrams.get(uni, 0) + 1
+
+                    # fill character bigrams
+                        for bi in getBigrams(t):
+                            Bigrams[bi] = Bigrams.get(bi, 0) + 1
+
+                        Vocab[t] = Vocab.get(t, 0) + 1
+
+                    corpus.write(text + "\n")
 
         corpus.close()
 
@@ -447,9 +516,11 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
         global OOV
         OOV = 0
 
+        # Only keep words with frequency over COUNT_TRESHOLD in vocabulary
         for key in [k for k, v in Vocab.items() if v]:
             if Vocab[key] < COUNT_THRESHOLD:
                 del Vocab[key]
+                # TODO muss OOV nicht + Vocab[key] gesetzt werden?
                 OOV += 1
 
         print("OOV", OOV)
@@ -459,7 +530,6 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
         for key in sorted_voc:
             voc.write(key + "	" + str(Vocab[key]) + "\n")
         voc.close()
-
 
 
 
@@ -556,6 +626,7 @@ This is reserved for correcting the Royal Society Corpus
 """
 def readRules():
 
+    # TODO
     ######
     return
     ######
@@ -1241,16 +1312,21 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
     count = 0
 
     if TestSet:
-        test = "testSet/"
+        test = "testSet"
     else:
         test  = ""
 
-    if platform.system() == "Linux":
-        path = 'data/'+test+'Origin/' + fileName.split()[0][:-1] + ".xml.tagged"
-    else:
-        path = re.sub(r'/', r'\\\\', r'data\\testSet\\Origin\\' + fileName.split()[0][:-1] + ".xml.tagged")
+
+    path = Path(os.path.join('data', test, 'Origin', fileName.split()[0][:-1] + ".xml.tagged"))
+
+    # TODO delete that
+    #if platform.system() == "Linux":
+    #    path = 'data/'+test+'Origin/' + fileName.split()[0][:-1] + ".xml.tagged"
+    #else:
+    #    path = re.sub(r'/', r'\\\\', r'data\\' + test + '\\Origin\\' + fileName.split()[0][:-1] + ".xml.tagged")
 
     try:
+        print(path)
         tree = ET.ElementTree(file=path)
     except IOError:
         print("FILE NOT FOUND ! " + fileName)
@@ -1265,8 +1341,7 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
         if child.text is not None:
             child.text, history = correct(Vocabulary, LM, EM, child.text, history)
 
-
-    ## quick and dirty method to reset cache after every file
+    # quick and dirty method to reset cache after every file
     LM()
     EM()
     editProbability()
@@ -1274,9 +1349,9 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
     edits()
 
     if TestSet:
-        tree.write(re.sub(r'Origin', r'NoisyChannel', path))
+        tree.write(re.sub(r'Origin', r'NoisyChannel', str(path)))
     else:
-        tree.write(re.sub(r'Origin', r'CorrectedCorpus', path))
+        tree.write(re.sub(r'Origin', r'CorrectedCorpus', str(path)))
 
     sys.stdout.write("[DONE] " + fileName)
     sys.stdout.flush()
@@ -1350,9 +1425,9 @@ def test_royal_society_corpus():
     test_files = open(Path(DATA_DIR,"test_data.txt"))
 
     data = [ (file.split()[0][:-1] + ".xml.tagged",)  for file in test_files]
-    num_cores = multiprocessing.cpu_count()
 
-    p = multiprocessing.Pool(num_cores)
+    global NUM_CORES
+    p = multiprocessing.Pool(NUM_CORES)
 
     for v in [ (i[0],i[1],i[2],i[3],i[4]) for i in p.starmap(test_file, data)]:
 
@@ -1458,6 +1533,7 @@ def testChangingPercentage(algorithm="<noisy>"):
 def correctCorpus(LM,EM):
 
 
+    ## TODO hier vllt all_titles.txt
     documents = open("data/training_data.txt", "r", encoding="utf8")
     Vocabulary = LM.getVocabulary()
 
@@ -1465,6 +1541,7 @@ def correctCorpus(LM,EM):
     global NUM_CORES
 
     data = [ (Vocabulary, LM, EM, name, False) for name in documents]
+
 
     p = multiprocessing.Pool(NUM_CORES)
     p.starmap(correctDocument, data)
@@ -1720,6 +1797,7 @@ def readArguments():
 
     ## TEST
     parser.add_argument('-te', '--test',action='store_true',  help='Evaluates the spell checker on the sample documents from the Royal Society Corpus')
+    parser.add_argument('--royal',action='store_true',  help='Correct the entire Royal Society Corpus')
     parser.add_argument('-ppl','--perplexity', nargs=2, help='Computes the Perplexity measure for given file and language model')
     parser.add_argument("--num_cores","-cores", type=int, default=1,  metavar="CORES",  help='Number of cores that can be used for computations, default: N - 1  ')
 
@@ -1755,6 +1833,7 @@ def process_arguments(args):
     global SMOOTH_EM
     SMOOTH_EM = args.error_model_smooth
 
+    #TODO default order=2
     global N_GRAM
     N_GRAM = args.order
 
@@ -1812,13 +1891,16 @@ def process_arguments(args):
     global EVALUATE_ROYAL_SOCIETY_CORPUS
     EVALUATE_ROYAL_SOCIETY_CORPUS = args.test
 
+    global CORRECT_RSC
+    CORRECT_RSC = args.royal
+
     global NUM_CORES
     NUM_CORES = min(NUM_CORES, args.num_cores)
 
 
 
-    if args.arpa is not None and os.path.isfile(Path(args.arpa)):
-        LM, unigrams, bigrams = buildLanguageModel(arpa_file=os.path.join(Path(args.arpa)))
+    if args.languagemodel is not None and os.path.isfile(Path(args.languagemodel)) and args.train is None:
+        LM, unigrams, bigrams = buildLanguageModel(arpa_file=os.path.join(Path(args.languagemodel)))
 
     elif args.train is not None:
 
@@ -1841,8 +1923,6 @@ def process_arguments(args):
         print("Files", file_container)
 
         LM, unigrams, bigrams = buildLanguageModel(files=file_container)
-
-
 
     else:
 
@@ -1952,7 +2032,16 @@ def process_correction_input(LM, EM, input):
     global EVALUATE_ROYAL_SOCIETY_CORPUS
     if EVALUATE_ROYAL_SOCIETY_CORPUS:
         print("Testing the model on the Royal Society Corpus test set")
-        correctionTestSet(LM, EM)
+        # TODO uncomment below
+        #correctionTestSet(LM, EM)
+        test_royal_society_corpus()
+
+    global CORRECT_RSC
+    if CORRECT_RSC:
+        print("Start correcting the Royal Society Corpus")
+        correctCorpus(LM, EM)
+
+
 
 
 
@@ -1988,6 +2077,7 @@ def main():
     args = readArguments()
 
     LM, EM, correction_input = process_arguments(args)
+
 
     process_correction_input(LM, EM, correction_input)
 
