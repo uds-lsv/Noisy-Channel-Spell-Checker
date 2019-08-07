@@ -1,0 +1,5 @@
+ssh cklaus@contact.lsv.uni-saarland.de
+
+qsub -l hostname=cl14lx Desktop/BachelorThesis/run.sh
+qsub  Desktop/BachelorThesis/run.sh
+

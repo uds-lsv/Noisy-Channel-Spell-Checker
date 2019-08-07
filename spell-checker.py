@@ -41,8 +41,9 @@ VERBOSE = False
 
 EVALUATE_ROYAL_SOCIETY_CORPUS = False
 DATA_DIR = 'data'
-SRILM_PATH = ""
+SRILM_PATH = "/nethome/cklaus/tools/srilm/bin/i686-m64"
 NUM_CORES = max(1,multiprocessing.cpu_count()-1)
+
 
 CORRECT_RSC = False
 
@@ -547,7 +548,7 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
 
 
         # call SRILM
-        subprocess.call("."+ SRILM_PATH + "/ngram-count -vocab "+DATA_DIR+"/vocabulary.count   -order " + str(
+        subprocess.call(SRILM_PATH + "/ngram-count -vocab "+DATA_DIR+"/vocabulary.count   -order " + str(
             N_GRAM) + "   -no-eos -no-sos    -text "+DATA_DIR+"/corpus.txt  -unk  -write "+DATA_DIR+"/count" + str(N_GRAM) + ".count",
                         shell=True)
 
@@ -558,7 +559,7 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
             for i in range(N_GRAM):
                 smooth += " -kndiscount" + str(i + 1) + " "
 
-        subprocess.call("."+ SRILM_PATH + "./ngram-count   -vocab "+DATA_DIR+"/vocabulary.count   -order " + str(
+        subprocess.call(SRILM_PATH + "/ngram-count   -vocab "+DATA_DIR+"/vocabulary.count   -order " + str(
             N_GRAM) + "  -unk -no-eos  -no-sos -read "+DATA_DIR+"/count" + str(N_GRAM) + ".count  -lm "+DATA_DIR+"/" +
                         TARGET_LANGUAGE_MODEL +" " + smooth, shell=True)
 
@@ -1042,6 +1043,8 @@ def correct(Vocabulary, LM, EM, text, history):
 
 def correct_plain_text(LM, EM, tokens, history=[]):
 
+
+
     vocabulary = LM.getVocabulary()
 
     if not isinstance(tokens, (list,)):
@@ -1324,7 +1327,6 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
     #    path = re.sub(r'/', r'\\\\', r'data\\' + test + '\\Origin\\' + fileName.split()[0][:-1] + ".xml.tagged")
 
     try:
-        print(path)
         tree = ET.ElementTree(file=path)
     except IOError:
         print("FILE NOT FOUND ! " + fileName)
@@ -1360,7 +1362,6 @@ def correctionTestSet(LM, EM):
 
     testFiles = open("data/test_data.txt")
     Vocabulary = LM.getVocabulary()
-
 
     global NUM_CORES
 
@@ -1429,10 +1430,12 @@ def test_royal_society_corpus():
 
     for v in [ (i[0],i[1],i[2],i[3],i[4]) for i in p.starmap(test_file, data)]:
 
+        print(v)
         TP+=v[0]
         TN+=v[1]
         FP+=v[2]
         FN+=v[3]
+
 
 
     precision = TP / float(TP + FP)
@@ -1449,7 +1452,7 @@ def test_royal_society_corpus():
 
 def compute_perplexity(arguments):
     # requirement:  textfile  +  arpa file
-    subprocess.call("." + SRILM_PATH + "/ngram -lm "+ str(Path(arguments[1])) +
+    subprocess.call(SRILM_PATH + "/ngram -lm "+ str(Path(arguments[1])) +
                     " -unk -ppl " + str(Path(arguments[0])), shell=True)
 
 def testChangingPercentage(algorithm="<noisy>"):
@@ -1803,11 +1806,11 @@ def readArguments():
     args=parser.parse_args()
 
     # DEVELOPMENT: output arguments
-    for k in args.__dict__:
-        if args.__dict__[k] is not None:
-            print(k, ">", args.__dict__[k])
-        else:
-            print(k, "None")
+    #for k in args.__dict__:
+    #    if args.__dict__[k] is not None:
+    #        print(k, ">", args.__dict__[k])
+    #    else:
+    #        print(k, "None")
 
     return args
 
@@ -1815,11 +1818,11 @@ def readArguments():
 def process_arguments(args):
 
 
-    print(args)
+    #print(args)
 
-    for k, value in args._get_kwargs():
-        if value is not None:
-            print(">>",k, value)
+    #for k, value in args._get_kwargs():
+    #    if value is not None:
+    #        print(">>",k, value)
 
 
 
@@ -1983,7 +1986,6 @@ def process_arguments(args):
             prompt = True
 
     correction_input = {"files": files, "tokens": tokens, "prompt": prompt}
-
     return LM, EM, correction_input
 
 
@@ -2004,7 +2006,7 @@ def correctionPrompt(LM, EM):
         if inputText == "quit()":
             break
         else:
-            print(correct_plain_text(LM, EM, inputText)[0])
+            print(correct_plain_text(LM, EM, inputText, [])[0])
     return
 
 
@@ -2016,7 +2018,7 @@ def process_correction_input(LM, EM, input):
         correctionPrompt(LM, EM)
 
     ## CORRECT DIRECT INPUT
-    print(correct_plain_text(LM, EM, input["tokens"])[0])
+    print(correct_plain_text(LM, EM, input["tokens"], [])[0])
 
     ## CORRECT FILE
     for file in input["files"]:
@@ -2027,7 +2029,6 @@ def process_correction_input(LM, EM, input):
     global EVALUATE_ROYAL_SOCIETY_CORPUS
     if EVALUATE_ROYAL_SOCIETY_CORPUS:
         print("Testing the model on the Royal Society Corpus test set")
-        # TODO uncomment below
         #correctionTestSet(LM, EM)
         test_royal_society_corpus()
 
@@ -2041,7 +2042,6 @@ def process_correction_input(LM, EM, input):
 
 
 def correctFile(LM, EM, file_name):
-
 
         global DESTINATION_DIR
         data = open(file_name).read()
@@ -2071,7 +2071,7 @@ def correctFile(LM, EM, file_name):
 ####################################
 
             # special file types: XML and annotated XML (verticalized)
-            if file_name.endswith(".xml") or file_name.endswith(".xml.tagged"):
+            if str(file_name).endswith(".xml") or str(file_name).endswith(".xml.tagged"):
 
                 try:
                     with open(file_name, 'r', encoding="iso-8859-1") as f:
@@ -2087,9 +2087,9 @@ def correctFile(LM, EM, file_name):
 
                     if child.text is not None:
                         # distinguish between XML TAGGED and XML
-                        if file_name.endswith(".xml.tagged"):
+                        if str(file_name).endswith(".xml.tagged"):
                             child.text, history = correct(LM.getVocabulary(), LM, EM, child.text, history)
-                        elif file_name.endswith(".xml"):
+                        elif str(file_name).endswith(".xml"):
                             child.text, history = correct_plain_text(LM, EM, child.text, history)
 
                 tree.write(target)
@@ -2097,8 +2097,7 @@ def correctFile(LM, EM, file_name):
             # ordinary text file
             else:
                 with open(target, "w") as fileOut:
-
-                    fileOut.write(correct_plain_text(LM, EM, data)[0])
+                    fileOut.write(correct_plain_text(LM, EM, data, [])[0])
 
 
 ########################################
@@ -2109,7 +2108,7 @@ def correctFile(LM, EM, file_name):
         else:
             file_name = new_file_name
             # special file types: XML and annotated XML (verticalized)
-            if file_name.endswith(".xml") or file_name.endswith(".xml.tagged"):
+            if str(file_name).endswith(".xml") or str(file_name).endswith(".xml.tagged"):
 
                 try:
                     with open(file_name, 'r', encoding="iso-8859-1") as f:
@@ -2125,20 +2124,23 @@ def correctFile(LM, EM, file_name):
 
                     if child.text is not None:
                         # distinguish between XML TAGGED and XML
-                        if file_name.endswith(".xml.tagged"):
+                        if str(file_name).endswith(".xml.tagged"):
                             child.text, history = correct(LM.getVocabulary(), LM, EM, child.text, history)
-                        elif file_name.endswith(".xml"):
+                        elif str(file_name).endswith(".xml"):
                             child.text, history = correct_plain_text(LM, EM, child.text, history)
 
                 tree.write(file_name)
 
             #ordinary text file
             else:
-                open(file_name, 'w').write(correct_plain_text(LM, EM, data)[0])
+                open(file_name, 'w').write(correct_plain_text(LM, EM, data, [])[0])
 
 
 
 def main():
+
+    print("HALLO DU GEILO")
+    return
 
     args = readArguments()
 
