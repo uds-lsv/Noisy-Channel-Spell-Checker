@@ -30,7 +30,6 @@ The tool can be executed by calling ``spell-checker.py``. It provides a variety 
 | **`-v`** or **`--version`**       |  | Prints version of the Noisy Channel Spell Checker. |
 | **`-q`** or **`--quiet`**       | | Suppress printouts. |
 | **`-vb`** or **`--verbose`**       |  |  Print verbose. |
-| **`--skip_html`**   |  | Ignore internal structure of HTML or XML files. |
 |      | |  |
 | **`-te`** or **--test`**      | | Evaluates the spell checker on the sample documents from the Royal Society Corpus |
 | **`--royal`**      | | Correct the entire Royal Society Corpus |

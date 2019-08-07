@@ -39,7 +39,6 @@ TARGET_LANGUAGE_MODEL = ""
 QUIET = False
 VERBOSE = False
 
-SKIP_HTML = False
 EVALUATE_ROYAL_SOCIETY_CORPUS = False
 DATA_DIR = 'data'
 SRILM_PATH = ""
@@ -1046,10 +1045,9 @@ def correct_plain_text(LM, EM, tokens, history=[]):
     vocabulary = LM.getVocabulary()
 
     if not isinstance(tokens, (list,)):
-        tokens = [c for c in tokens.split()]
+        tokens = [c for c in tokens.split(" ")]
 
     for i, t in enumerate(tokens):
-
         global stopwords
         if t in stopwords:
             history = assignPredecessors(history, t)
@@ -1067,7 +1065,7 @@ def correct_plain_text(LM, EM, tokens, history=[]):
 
         maxi = -np.inf
         for c in edits(vocabulary, EM, t):
-
+            #print("t",t,"c",c,"history",history)
             res = LM(c, history) * PRIOR_WEIGHT + editProbability(EM, t, c)
             if res > maxi:
                 maxi = res
@@ -1078,7 +1076,7 @@ def correct_plain_text(LM, EM, tokens, history=[]):
         t = prefix + corrected_word + suffix
         tokens[i] = t
 
-    return ' '.join(t for t in tokens)
+    return ' '.join(t for t in tokens), history
 
 
 @memo3
@@ -1451,7 +1449,8 @@ def test_royal_society_corpus():
 
 def compute_perplexity(arguments):
     # requirement:  textfile  +  arpa file
-    subprocess.call("." + SRILM_PATH + "/ngram -lm "+ arguments[1] +" -unk -ppl " + arguments[0], shell=True)
+    subprocess.call("." + SRILM_PATH + "/ngram -lm "+ str(Path(arguments[1])) +
+                    " -unk -ppl " + str(Path(arguments[0])), shell=True)
 
 def testChangingPercentage(algorithm="<noisy>"):
     changes, numberwords = 0, 0
@@ -1793,7 +1792,6 @@ def readArguments():
     group.add_argument('-q', '--quiet', action='store_true', help=' Suppress printouts.')
     group.add_argument('-vb','--verbose', action='store_true', help='Print verbose.')
 
-    parser.add_argument('--skip_html', action='store_true', help='Ignore internal structure of HTML or XML files.')
 
     ## TEST
     parser.add_argument('-te', '--test',action='store_true',  help='Evaluates the spell checker on the sample documents from the Royal Society Corpus')
@@ -1885,8 +1883,6 @@ def process_arguments(args):
     global VERBOSE
     VERBOSE = args.verbose
 
-    global SKIP_HTML
-    SKIP_HTML = args.skip_html
 
     global EVALUATE_ROYAL_SOCIETY_CORPUS
     EVALUATE_ROYAL_SOCIETY_CORPUS = args.test
@@ -1956,7 +1952,6 @@ def process_arguments(args):
 
 
     if args.perplexity:
-        print("GRRRR")
         compute_perplexity(args.perplexity)
 
 
@@ -2009,7 +2004,7 @@ def correctionPrompt(LM, EM):
         if inputText == "quit()":
             break
         else:
-            print(correct_plain_text(LM, EM, inputText))
+            print(correct_plain_text(LM, EM, inputText)[0])
     return
 
 
@@ -2021,7 +2016,7 @@ def process_correction_input(LM, EM, input):
         correctionPrompt(LM, EM)
 
     ## CORRECT DIRECT INPUT
-    print(correct_plain_text(LM, EM, input["tokens"]))
+    print(correct_plain_text(LM, EM, input["tokens"])[0])
 
     ## CORRECT FILE
     for file in input["files"]:
@@ -2045,30 +2040,101 @@ def process_correction_input(LM, EM, input):
 
 
 
-def correctFile(LM, EM, file_name, new_DESTINATION_DIR=""):
+def correctFile(LM, EM, file_name):
 
-    data = open(file_name).read()
 
-    # Generate new document name
-    new_file_name = str(file_name)
-    # Separates file endings and initial dots like '.\file.txt'
-    splitted_file_name = [comp for comp in new_file_name.split(".") if comp]
+        global DESTINATION_DIR
+        data = open(file_name).read()
+        if not data:
+            return
 
-    if not OVERWRITE:
-        new_file_name = splitted_file_name[0] + '_corrected' + ''.join('.' + n for n in splitted_file_name[1:])
+        # Generate new document name
+        new_file_name = str(file_name)
+        # Separates file endings and initial dots like '.\file.txt'
+        splitted_file_name = [comp for comp in new_file_name.split(".") if comp]
 
-        target = Path(os.path.join(DESTINATION_DIR, new_file_name))
-        target_path, target_filename = os.path.split(target)
+        if not OVERWRITE:
+            # label appears in the file name of the corrected file
+            label = "" if '_corrected' in splitted_file_name[0] else '_corrected'
 
-        if not os.path.exists(target_path):
-            os.makedirs(target_path)
+            new_file_name = splitted_file_name[0] + label + ''.join('.' + n for n in splitted_file_name[1:])
 
-        with open(target, "w") as fileOut:
+            if new_file_name[0] == "/" or new_file_name[0] == "\\":
+                new_file_name = new_file_name[1:]
+            target = Path(os.path.join(DESTINATION_DIR, new_file_name))
+            target_path, target_filename = os.path.split(target)
 
-            fileOut.write(correct_plain_text(LM, EM, data))
-    else:
-        open(file_name, 'w').write(correct_plain_text(LM, EM, data))
-        ## TODO VORSICHT: XML TAGS WERDEN AUCH ÜBERSCHREIBEN
+            if not os.path.exists(target_path):
+                os.makedirs(target_path)
+
+
+####################################
+
+            # special file types: XML and annotated XML (verticalized)
+            if file_name.endswith(".xml") or file_name.endswith(".xml.tagged"):
+
+                try:
+                    with open(file_name, 'r', encoding="iso-8859-1") as f:
+                        tree = ET.parse(f)
+                except IOError:
+                    print("File not found!", file_name)
+                    return
+
+                root = tree.getroot()
+                history = []
+
+                for child in root.getchildren():
+
+                    if child.text is not None:
+                        # distinguish between XML TAGGED and XML
+                        if file_name.endswith(".xml.tagged"):
+                            child.text, history = correct(LM.getVocabulary(), LM, EM, child.text, history)
+                        elif file_name.endswith(".xml"):
+                            child.text, history = correct_plain_text(LM, EM, child.text, history)
+
+                tree.write(target)
+
+            # ordinary text file
+            else:
+                with open(target, "w") as fileOut:
+
+                    fileOut.write(correct_plain_text(LM, EM, data)[0])
+
+
+########################################
+
+
+
+        # Do not overwrite
+        else:
+            file_name = new_file_name
+            # special file types: XML and annotated XML (verticalized)
+            if file_name.endswith(".xml") or file_name.endswith(".xml.tagged"):
+
+                try:
+                    with open(file_name, 'r', encoding="iso-8859-1") as f:
+                        tree = ET.parse(f)
+                except IOError:
+                    print("File not found!", file_name)
+                    return
+
+                root = tree.getroot()
+                history=[]
+
+                for child in root.getchildren():
+
+                    if child.text is not None:
+                        # distinguish between XML TAGGED and XML
+                        if file_name.endswith(".xml.tagged"):
+                            child.text, history = correct(LM.getVocabulary(), LM, EM, child.text, history)
+                        elif file_name.endswith(".xml"):
+                            child.text, history = correct_plain_text(LM, EM, child.text, history)
+
+                tree.write(file_name)
+
+            #ordinary text file
+            else:
+                open(file_name, 'w').write(correct_plain_text(LM, EM, data)[0])
 
 
 
@@ -2077,7 +2143,6 @@ def main():
     args = readArguments()
 
     LM, EM, correction_input = process_arguments(args)
-
 
     process_correction_input(LM, EM, correction_input)
 
