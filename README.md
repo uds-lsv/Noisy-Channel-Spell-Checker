@@ -19,7 +19,7 @@ The tool can be executed by calling ``spell-checker.py``. It provides a variety 
 | **`-o`** or **`--output`**       | file \| directory  | Determine where to store the corrected files (per default: output/) |
 | **`-ow`** or **`--overwrite`**       |  | If set, all the selected documents are overwritten by its correction. |
 |      | |  |
-| **`-lm`** or **`--languagemodel`**       | lm.arpa | TODO: (kombi mit arpa -> datei lesen)Filename to determine where to store the trained, arpa-formated language model. |
+| **`-lm`** or **`--languagemodel`**       | lm.arpa | Filename to determine where to store the trained, arpa-formated language model. |
 | **`-tr`** or **`--train`**       | file \| directory | Training files to train a language model. You can enter file(s) or entire folder(s). |
 | **`-ocr`**       |  | Use tool to post-process noisy OCR texts. **Attention:** You can either use the -ocr or the -typo option.  |
 | **`-typo`**       |  | Use tool to correct texts containing typos. |
