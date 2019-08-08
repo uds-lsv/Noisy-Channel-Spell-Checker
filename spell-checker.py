@@ -110,6 +110,11 @@ PREFIXES = []
 blackList = {}
 stopwords = {}
 
+# Suppress Warnings
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+
 class LanguageModelOLD(dict):
 
     Vocabulary = {}
@@ -366,7 +371,7 @@ def getOriginPath(line):
 
 
 def getPath(line):
-    path = re.sub(r':', r'', 'data/corporaTagged/' + line.split()[0] + '.xml.tagged')
+    path = re.sub(r':', r'', 'data/corpusTagged/' + line.split()[0] + '.xml.tagged')
     if platform.system() != "Linux":
         path = re.sub(r'/', r'\\', path)
     return path
@@ -2102,8 +2107,6 @@ def correctFile(LM, EM, file_name):
 
 def main():
 
-    print("HALLO DU GEILO")
-    return
 
     args = readArguments()
 
