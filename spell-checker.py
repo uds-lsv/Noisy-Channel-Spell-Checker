@@ -1,18 +1,14 @@
-from math import log10, log, sqrt
+from math import log10
 import xml.etree.cElementTree as ET  # to read xml files
 import re  # regular expressions
 import sys
 import codecs
 import platform
-#import arpa
 import os
-import subprocess
-import time
+import subprocess  # to open shell inside this program flow
 from joblib import Parallel, delayed
 import multiprocessing
-import copy
 import numpy as np
-import matplotlib.pyplot as plt
 import string
 import argparse
 from pathlib import Path
@@ -26,8 +22,6 @@ PRIOR_WEIGHT = 1.25
 N_GRAM = 1
 DISTANCE_LIMIT = 2
 COUNT_THRESHOLD = 2
-
-# RETRAIN_ITERATIONS = 0
 
 OOV = 13250000000
 
@@ -520,7 +514,6 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
         for key in [k for k, v in Vocab.items() if v]:
             if Vocab[key] < COUNT_THRESHOLD:
                 del Vocab[key]
-                # TODO muss OOV nicht + Vocab[key] gesetzt werden?
                 OOV += 1
 
         print("OOV", OOV)
@@ -621,29 +614,7 @@ def GroundTruthToTxt():
         sys.stdout.flush()
     corpus.close()
 
-"""
-This is reserved for correcting the Royal Society Corpus
-"""
-def readRules():
 
-    # TODO
-    ######
-    return
-    ######
-
-    file = codecs.open("data/cleanDifferences.count", "r", encoding="utf8")
-    rules = {}
-
-    for line in file:
-
-        lineList = line.split()
-        try:
-            lineList[4]
-            rules[lineList[1]] = (lineList[3] + " " + lineList[4], lineList[0])
-        except IndexError:
-            rules[lineList[1]] = (lineList[3], lineList[0])
-
-    return rules
 
 
 # def buildErrorModel(rules, Unigrams, Bigrams, alreadyGenerated=False):
@@ -664,123 +635,123 @@ def readRules():
 #         if spl == ">":
 #             summe += edits[key]
 #     edits.setNumberDeletionAtBeginning(summe)
-
-    #~ else:
-    #~ count = 0
-    #~ num_lines = sum(1 for _ in open("data/training_data.txt", "r", encoding="utf8"))
-    #~ allTitles = open("data/training_data.txt", "r", encoding="utf8")
-    #~ rules_cpy = {k: rules[k] for k in rules}
-
-    #~ for line in allTitles:
-
-    #~ path = getOriginPath(line)
-
-    #~ try:
-    #~ tree = ET.ElementTree(file=path)
-    #~ except IOError:
-    #~ print("FILE NOT FOUND !!")
-    #~ print(path)
-    #~ continue
-
-    #~ root = tree.getroot()
-
-    #~ for child in root.getchildren():
-
-    #~ if child.text is not None:
-    #~ childWordList = child.text.split()
-
-    #~ for word in childWordList:
-
-    #~ # WRONG WRITTEN WORD
-    #~ if word in rules:
-
-    #~ ### monitor which rules were already applied
-    #~ try:
-    #~ del rules_cpy[word]
-    #~ except KeyError:
-    #~ pass
-
-    #~ if " " in rules[word][0]:
-    #~ continue
-
-    #~ for edit in alignWords(word, rules[word][0]):
-    #~ edits[edit] = edits.get(edit, 0) + 1
-
-    #~ # CORRECT WRITTEN WORD
-    #~ else:
-    #~ for c in list(word):
-    #~ edits[c + "|" + c] = edits.get(c + "|" + c, 0) + 1
-    #~ for c in getBigrams(word):
-    #~ edits[c + "|" + c] = edits.get(c + "|" + c, 0) + 1
-    #~ #for c in getTrigrams(word):
-    #~ #	edits[c + "|" + c] = edits.get(c + "|" + c, 0) + 1
-
-
-
-
-    #~ count += 1
-    #~ sys.stdout.write('\r' + str(count) + " / " + str(num_lines))
-    #~ sys.stdout.flush()
-    #~ print('\n')
-
-    #~ ### fidding around with unused rules
-    #~ for w in rules_cpy:
-    #~ for edit in [e for e in alignWords(w, rules_cpy[w][0])]:
-    #~ edits[edit] = edits.get(edit, 0) + int(rules_cpy[w][1])
-
-    #~ 'MISSING UNIGRAMS / BIGRAMS'
-
-    #~ dic = {}
-    #~ for edit in edits:
-    #~ spl = edit.split("|")[1]
-    #~ if spl in edits.getUnigrams() or spl in edits.getBigrams():
-    #~ pass
-    #~ else:
-    #~ dic[spl] = dic.get(spl, 0) + edits[edit]
-    #~ uni = open("data/unigrams.count", "a", encoding="iso-8859-1")
-    #~ bi = open("data/bigrams.count", "a", encoding="iso-8859-1")
-    #~ #tri = open("data/trigrams.count", "a")
-    #~ for d in dic:
-    #~ if len(d) == 1:
-    #~ uni.write(d + "\t" + str(dic[d]) + "\n")
-
-    #~ tmp = edits.getUnigrams()
-    #~ tmp.update({d: dic[d]})
-    #~ edits.setUnigrams(tmp)
-    #~ elif len(d) == 2:
-    #~ bi.write(d + "\t" + str(dic[d]) + "\n")
-
-    #~ tmp = edits.getBigrams()
-    #~ tmp.update({d: dic[d]})
-    #~ edits.setBigrams(tmp)
-    #~ #else:
-    #~ #tri.write(d + "\t" + str(dic[d]) + "\n")
-
-    #~ #tmp = edits.getTrigrams()
-    #~ #tmp.update({d: dic[d]})
-    #~ #edits.setTrigrams(tmp)
-
-    #~ uni.close()
-    #~ bi.close()
-    #~ #tri.close()
-
-    #~ ## solve problem with deletion at beginning
-    #~ summe = 0
-    #~ for key in edits:
-    #~ spl = key.split('|')[1]
-    #~ if spl == ">":
-    #~ summe += edits[key]
-    #~ edits.setNumberDeletionAtBeginning(summe)
-
-    #~ ## WRITE TO FILE
-    #~ sorted_EM = sorted(edits, key=edits.get, reverse=True)
-    #~ out = open("data/ocr.txt", "w", encoding="iso-8859-1")
-
-    #~ for key in sorted_EM:
-    #~ out.write(key + "	" + str(edits[key]) + '\n')
-    #~ out.close()
-
-#    return edits
+#
+#     else:
+#     count = 0
+#     num_lines = sum(1 for _ in open("data/training_data.txt", "r", encoding="utf8"))
+#     allTitles = open("data/training_data.txt", "r", encoding="utf8")
+#     rules_cpy = {k: rules[k] for k in rules}
+#
+#     for line in allTitles:
+#
+#     path = getOriginPath(line)
+#
+#     try:
+#     tree = ET.ElementTree(file=path)
+#     except IOError:
+#     print("FILE NOT FOUND !!")
+#     print(path)
+#     continue
+#
+#     root = tree.getroot()
+#
+#     for child in root.getchildren():
+#
+#     if child.text is not None:
+#     childWordList = child.text.split()
+#
+#     for word in childWordList:
+#
+#     # WRONG WRITTEN WORD
+#     if word in rules:
+#
+#     ### monitor which rules were already applied
+#     try:
+#     del rules_cpy[word]
+#     except KeyError:
+#     pass
+#
+#     if " " in rules[word][0]:
+#     continue
+#
+#     for edit in alignWords(word, rules[word][0]):
+#     edits[edit] = edits.get(edit, 0) + 1
+#
+#     # CORRECT WRITTEN WORD
+#     else:
+#     for c in list(word):
+#     edits[c + "|" + c] = edits.get(c + "|" + c, 0) + 1
+#     for c in getBigrams(word):
+#     edits[c + "|" + c] = edits.get(c + "|" + c, 0) + 1
+#     #for c in getTrigrams(word):
+#     #	edits[c + "|" + c] = edits.get(c + "|" + c, 0) + 1
+#
+#
+#
+#
+#     count += 1
+#     sys.stdout.write('\r' + str(count) + " / " + str(num_lines))
+#     sys.stdout.flush()
+#     print('\n')
+#
+#     ### fidding around with unused rules
+#     for w in rules_cpy:
+#     for edit in [e for e in alignWords(w, rules_cpy[w][0])]:
+#     edits[edit] = edits.get(edit, 0) + int(rules_cpy[w][1])
+#
+#     'MISSING UNIGRAMS / BIGRAMS'
+#
+#     dic = {}
+#     for edit in edits:
+#     spl = edit.split("|")[1]
+#     if spl in edits.getUnigrams() or spl in edits.getBigrams():
+#     pass
+#     else:
+#     dic[spl] = dic.get(spl, 0) + edits[edit]
+#     uni = open("data/unigrams.count", "a", encoding="iso-8859-1")
+#     bi = open("data/bigrams.count", "a", encoding="iso-8859-1")
+#     #tri = open("data/trigrams.count", "a")
+#     for d in dic:
+#     if len(d) == 1:
+#     uni.write(d + "\t" + str(dic[d]) + "\n")
+#
+#     tmp = edits.getUnigrams()
+#     tmp.update({d: dic[d]})
+#     edits.setUnigrams(tmp)
+#     elif len(d) == 2:
+#     bi.write(d + "\t" + str(dic[d]) + "\n")
+#
+#     tmp = edits.getBigrams()
+#     tmp.update({d: dic[d]})
+#     edits.setBigrams(tmp)
+#     #else:
+#     #tri.write(d + "\t" + str(dic[d]) + "\n")
+#
+#     #tmp = edits.getTrigrams()
+#     #tmp.update({d: dic[d]})
+#     #edits.setTrigrams(tmp)
+#
+#     uni.close()
+#     bi.close()
+#     #tri.close()
+#
+#     ## solve problem with deletion at beginning
+#     summe = 0
+#     for key in edits:
+#     spl = key.split('|')[1]
+#     if spl == ">":
+#     summe += edits[key]
+#     edits.setNumberDeletionAtBeginning(summe)
+#
+#     ## WRITE TO FILE
+#     sorted_EM = sorted(edits, key=edits.get, reverse=True)
+#     out = open("data/ocr.txt", "w", encoding="iso-8859-1")
+#
+#     for key in sorted_EM:
+#     out.write(key + "	" + str(edits[key]) + '\n')
+#     out.close()
+#
+#     return edits
 
 
 def buildBlackList():
@@ -788,8 +759,8 @@ def buildBlackList():
 
     global blackList
 
-    # TODO change that
-    return  blackList
+    # TODO check wheter this works. If so, then Remove TODO
+    #return  blackList
 
 
 
@@ -1315,16 +1286,10 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
     if TestSet:
         test = "testSet"
     else:
-        test  = ""
+        test = ""
 
 
     path = Path(os.path.join('data', test, 'Origin', fileName.split()[0][:-1] + ".xml.tagged"))
-
-    # TODO delete that
-    #if platform.system() == "Linux":
-    #    path = 'data/'+test+'Origin/' + fileName.split()[0][:-1] + ".xml.tagged"
-    #else:
-    #    path = re.sub(r'/', r'\\\\', r'data\\' + test + '\\Origin\\' + fileName.split()[0][:-1] + ".xml.tagged")
 
     try:
         tree = ET.ElementTree(file=path)
@@ -1369,7 +1334,6 @@ def correctionTestSet(LM, EM):
     Parallel(n_jobs=NUM_CORES)(delayed(correctDocument)(Vocabulary, LM, EM, name) for name in testFiles)
 
 
-# TODO file name should be directly given
 def test_file(file):
 
     TP, TN, FP, FN = 0,0,0,0
@@ -1442,8 +1406,10 @@ def test_royal_society_corpus():
     recall = TP / float(TP + FN)
     f_score = (2 * precision * recall) / float(precision + recall)
 
-    sys.stdout.write("Precision"+"\t"+"Recall"+"\t"+"F1-Score"+"\n")
-    sys.stdout.write(str(precision)+"\t"+str(recall)+"\t"+str(f_score)+"\n")
+    sys.stdout.write("Precision" + "\t" + str(precision) + "\n")
+    sys.stdout.write("Recall" + "\t" + str(recall) + "\n")
+    sys.stdout.write("F1-Score" + "\t" + str(f_score) + "\n")
+
     sys.stdout.flush()
 
 
@@ -1535,7 +1501,6 @@ def testChangingPercentage(algorithm="<noisy>"):
 def correctCorpus(LM,EM):
 
 
-    ## TODO hier vllt all_titles.txt
     documents = open("data/training_data.txt", "r", encoding="utf8")
     Vocabulary = LM.getVocabulary()
 
@@ -1771,7 +1736,7 @@ def readArguments():
 
     ## TRAINING
     parser.add_argument("--arpa",  metavar="LM",  help='ARPA file to instantiate the language model, skips LM training')
-    parser.add_argument("-lm", "--languagemodel", default="LM.arpa",  metavar="LM", help=' Filename to determine where to store the trained, arpa-formated language model. ')
+    parser.add_argument("-lm", "--languagemodel", default="LM2.arpa",  metavar="LM", help=' Filename to determine where to store the trained, arpa-formated language model. ')
     parser.add_argument("-tr", "--train", nargs="+",metavar="DATA",  help='Training files to train a language model. You can enter file(s) or entire folder(s).')
 
 
@@ -1781,9 +1746,8 @@ def readArguments():
 
 
     ## PARAMETERS
-    #TODO brauchen wir nargs=1 ?
     parser.add_argument("--lmweight", default=1.25,  metavar="WEIGHT",type=float,   help='numeric value w that weights the language model P(c)^w')
-    parser.add_argument("--order", type=int, default=1,  metavar="ORDER",  help='Order of generated language model.')
+    parser.add_argument("--order", type=int, default=2,  metavar="ORDER",  help='Order of generated language model.')
     parser.add_argument("--error_model_smooth",  default=0.0001,  metavar="PSEUDOCOUNT",type=float,   help='pseudocount for laplace smoothing of the error model probabilities')
 
 
@@ -1834,7 +1798,6 @@ def process_arguments(args):
     global SMOOTH_EM
     SMOOTH_EM = args.error_model_smooth
 
-    #TODO default order=2
     global N_GRAM
     N_GRAM = args.order
 
@@ -1923,10 +1886,10 @@ def process_arguments(args):
 
         LM, unigrams, bigrams = buildLanguageModel(files=file_container)
 
+    # Default: 2-gram Language Model of
     else:
 
-        # TODO default 2-gram *.arpa of the Royal Society Corpus
-        LM, unigrams, bigrams = buildLanguageModel(arpa_file=os.path.join(Path(DATA_DIR, "LM1.arpa")))
+        LM, unigrams, bigrams = buildLanguageModel(arpa_file=os.path.join(Path(DATA_DIR, "LM2.arpa")))
 
 
 
@@ -2029,7 +1992,7 @@ def process_correction_input(LM, EM, input):
     global EVALUATE_ROYAL_SOCIETY_CORPUS
     if EVALUATE_ROYAL_SOCIETY_CORPUS:
         print("Testing the model on the Royal Society Corpus test set")
-        #correctionTestSet(LM, EM)
+        correctionTestSet(LM, EM)
         test_royal_society_corpus()
 
     global CORRECT_RSC
@@ -2151,9 +2114,7 @@ def main():
     print()
 
     if args.correct is None:
-        pass
-        #TODO uncomment
-        #correctionPrompt(LM, EM)
+        correctionPrompt(LM, EM)
 
     return
 
