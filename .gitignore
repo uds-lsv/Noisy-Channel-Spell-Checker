@@ -8,4 +8,7 @@
 # ignore subfolders in 'data'
 data/*/
 !data/images/
+!data/testSet/GroundTruth
+!data/testSet/NoisyChannel
+!data/testSet/Origin
 

@@ -1,3 +1,6 @@
+
+from __future__ import print_function
+import builtins as __builtin__
 from math import log10
 import xml.etree.cElementTree as ET  # to read xml files
 import re  # regular expressions
@@ -12,6 +15,7 @@ import numpy as np
 import string
 import argparse
 from pathlib import Path
+import warnings
 
 
 VERSION = "1.0.0"
@@ -41,8 +45,13 @@ NUM_CORES = max(1,multiprocessing.cpu_count()-1)
 
 CORRECT_RSC = False
 
-" Caching System "
+# Suppress Warnings
+warnings.filterwarnings("ignore")
 
+#warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+
+" Caching System "
 
 def memo(f):
     """Memoize function f."""
@@ -106,13 +115,22 @@ def memo3(f):
     return fmemo
 
 
+
+
+def print(*args, **kwargs):
+    """My custom print() function."""
+    # Adding new arguments to the print function signature
+    # is probably a bad idea.
+    # Instead consider testing if custom argument keywords
+    # are present in kwargs
+    if not QUIET:
+        return __builtin__.print(*args, **kwargs)
+
+
 PREFIXES = []
 blackList = {}
 stopwords = {}
 
-# Suppress Warnings
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 class LanguageModelOLD(dict):
@@ -426,7 +444,6 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
         for f in files:
 
             if str(f).endswith('.xml'):
-                print("XML file")
                 path = Path(f)
 
                 try:
@@ -437,7 +454,7 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
 
                 root = tree.getroot()
 
-                for child in root.getchildren():
+                for child in list(root):
                     if child.text is not None:
 
                         tokens = [c for c in child.text.split() if c]
@@ -469,7 +486,7 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
 
                 root = tree.getroot()
 
-                for child in root.getchildren():
+                for child in list(root):
 
                     if child.text is not None:
 
@@ -521,7 +538,7 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
                 del Vocab[key]
                 OOV += 1
 
-        print("OOV", OOV)
+        #print("OOV", OOV)
 
         sorted_voc = sorted(Vocab, key=Vocab.get, reverse=True)
         voc = open(os.path.join(Path(DATA_DIR, "vocabulary.count")), "w")
@@ -550,7 +567,7 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
             N_GRAM) + "   -no-eos -no-sos    -text "+DATA_DIR+"/corpus.txt  -unk  -write "+DATA_DIR+"/count" + str(N_GRAM) + ".count",
                         shell=True)
 
-        print("created COUNT File")
+        print("created Count File")
 
         smooth = ""
         if N_GRAM != 1:
@@ -561,7 +578,7 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
             N_GRAM) + "  -unk -no-eos  -no-sos -read "+DATA_DIR+"/count" + str(N_GRAM) + ".count  -lm "+DATA_DIR+"/" +
                         TARGET_LANGUAGE_MODEL +" " + smooth, shell=True)
 
-        print("created LANGUAGE MODEL")
+        print("created Language Model")
 
         LM = LanguageModel(os.path.join(Path(DATA_DIR, TARGET_LANGUAGE_MODEL)))
         LM.setVocabulary(Vocab)
@@ -602,7 +619,7 @@ def GroundTruthToTxt():
 
         root = tree.getroot()
 
-        for child in root.getchildren():
+        for child in list(root):
             linebreaker += 1
 
             if child.text is not None:
@@ -660,7 +677,7 @@ def GroundTruthToTxt():
 #
 #     root = tree.getroot()
 #
-#     for child in root.getchildren():
+#     for child in list(root):
 #
 #     if child.text is not None:
 #     childWordList = child.text.split()
@@ -786,8 +803,9 @@ def buildBlackList():
     return blackList
 
 
+# Source:  https://github.com/alevchuk/pairwise-alignment-in-python by Aleksandr Levchuk
+# under GNU General Public License v3.0
 def alignWords(a, b):
-    # https://github.com/alevchuk/pairwise-alignment-in-python
 
     def zeros(shape):
         retval = []
@@ -1044,7 +1062,6 @@ def correct_plain_text(LM, EM, tokens, history=[]):
 
         maxi = -np.inf
         for c in edits(vocabulary, EM, t):
-            #print("t",t,"c",c,"history",history)
             res = LM(c, history) * PRIOR_WEIGHT + editProbability(EM, t, c)
             if res > maxi:
                 maxi = res
@@ -1304,7 +1321,7 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
 
     root = tree.getroot()
 
-    for child in root.getchildren():
+    for child in list(root):
 
         count += 1
 
@@ -1360,9 +1377,9 @@ def test_file(file):
     rootGT = treeGT.getroot()
     root = tree.getroot()
 
-    childsOri = [child.text for child in rootOri.getchildren()]
-    childsGT = [child.text for child in rootGT.getchildren()]
-    childs = [child.text for child in root.getchildren()]
+    childsOri = [child.text for child in list(rootOri)]
+    childsGT = [child.text for child in list(rootGT)]
+    childs = [child.text for child in list(root)]
 
     if not (len(childsOri) == len(childsGT) and len(childsGT) == len(childs)):
         print("INCONSISTENT NUMBER OF CHILDS")
@@ -1399,7 +1416,6 @@ def test_royal_society_corpus():
 
     for v in [ (i[0],i[1],i[2],i[3],i[4]) for i in p.starmap(test_file, data)]:
 
-        print(v)
         TP+=v[0]
         TN+=v[1]
         FP+=v[2]
@@ -1477,10 +1493,10 @@ def testChangingPercentage(algorithm="<noisy>"):
         rootOri = treeOri.getroot()
         root = tree.getroot()
 
-        childsOri = [child.text for child in rootOri.getchildren()]
-        childs = [child.text for child in root.getchildren()]
+        childsOri = [child.text for child in list(rootOri)]
+        childs = [child.text for child in list(root)]
 
-        numPages = sum(1 for _ in rootOri.getchildren())
+        numPages = sum(1 for _ in list(rootOri))
 
         if not (len(childsOri) == len(childs)):
             print("INCONSISTENT NUMBER OF CHILDS")
@@ -2051,7 +2067,7 @@ def correctFile(LM, EM, file_name):
                 root = tree.getroot()
                 history = []
 
-                for child in root.getchildren():
+                for child in list(root):
 
                     if child.text is not None:
                         # distinguish between XML TAGGED and XML
@@ -2088,7 +2104,7 @@ def correctFile(LM, EM, file_name):
                 root = tree.getroot()
                 history=[]
 
-                for child in root.getchildren():
+                for child in list(root):
 
                     if child.text is not None:
                         # distinguish between XML TAGGED and XML
@@ -2105,8 +2121,13 @@ def correctFile(LM, EM, file_name):
 
 
 
-def main():
+def activatePrompt(args):
+    if args.correct is None and not args.test and not args.royal:
+        return True
+    else:
+        return False
 
+def main():
 
     args = readArguments()
 
@@ -2116,7 +2137,7 @@ def main():
 
     print()
 
-    if args.correct is None:
+    if activatePrompt(args):
         correctionPrompt(LM, EM)
 
     return
