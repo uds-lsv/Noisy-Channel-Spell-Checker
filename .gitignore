@@ -9,3 +9,19 @@
 
 data/*
 !data/testSet
+data/corpusTagged/
+data/CorrectedCorpus/
+!data/ok/
+
+
+!data/corpusTagged/.gitkeep
+!data/CorrectedCorpus/.gitkeep
+
+data/ok/*
+!data/ok/.gitkeep
+
+# exclude everything
+#somefolder/*
+
+# exception to the rule
+#!somefolder/.gitkeep
