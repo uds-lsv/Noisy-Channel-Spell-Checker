@@ -2,13 +2,10 @@
 .idea/
 
 # ignore all folders except data/
-*/
+/*/
 !data/
 
-# ignore subfolders in 'data'
-data/*/
-!data/images/
-!data/testSet/GroundTruth
-!data/testSet/NoisyChannel
-!data/testSet/Origin
+# include test data
 
+data/*
+!data/testSet
