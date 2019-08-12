@@ -6,7 +6,7 @@
 !data/
 
 # include test data
-data/*
+data/*/
 !data/testSet
 
 
