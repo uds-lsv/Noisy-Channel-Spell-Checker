@@ -1042,8 +1042,7 @@ def correct_plain_text(LM, EM, tokens, history=[]):
     vocabulary = LM.getVocabulary()
 
     if not isinstance(tokens, (list,)):
-        tokens = [c for c in tokens.split(" ")]
-
+        tokens = [c.strip() for c in tokens.split(" ") if c]
     for i, t in enumerate(tokens):
         global stopwords
         if t in stopwords:
