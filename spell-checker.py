@@ -18,7 +18,7 @@ from pathlib import Path
 import warnings
 
 
-VERSION = "1.0.0"
+VERSION = "1.0.30"
 SMOOTH_LM = 1e-06
 SMOOTH_EM = 0.0001
 PRIOR_WEIGHT = 1.25
@@ -255,23 +255,31 @@ class LanguageModel(dict):
         # replace unknown tokens with <unk>
 
         if not current in self.vocab:
-
             if current == "<s>":
                 return self["<s>"][0]
             if current == "</s>":
                 return self["</s>"][0]
 
             current = "<unk>"
+
+        # Solve Bug: If history is empty and word not in self
+        if not history and current not in self:
+            current = "<unk>"
+
         s = current
 
+        history = [h for h in history.split(" ") if h]
 
         # replace unknown words in history with UNK token
         for i in range(len(history)):
             if history[i] not in self.vocab:
+
+
+
+
                 history[i] = '<unk>'
 
-        s = " ".join(history) + " " + s if history else  s
-
+        s = " ".join(history) + " " + s if history else s
 
 
         ###  d : (prob, backoff)  ###
@@ -1824,6 +1832,8 @@ def process_arguments(args):
     ## VERSION
     if args.version:
         printVersion()
+        sys.exit(0)
+
 
 
     ## META
@@ -1953,6 +1963,7 @@ def process_arguments(args):
         # Give files or strings as input
         if len(args.correct) > 0:
             for data in args.correct:
+                data = Path(os.path.expanduser(data))
                 # Extract files
                 if os.path.isfile(data):
                     files.append(data)
@@ -1963,6 +1974,7 @@ def process_arguments(args):
                             files.append(Path(root, f))
                 # Direct Token input
                 else:
+                    print("Sollte nicht gesehen werden",data)
                     tokens.append(data)
         #If only -c/--correct is given, open prompt environment
         else:
