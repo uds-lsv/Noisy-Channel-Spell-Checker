@@ -1685,11 +1685,11 @@ def process_arguments(args):
     global DESTINATION_DIR
     DESTINATION_DIR = os.path.join(args.output)
     # safely check for existence and create output folder
-    if not os.path.exists(DESTINATION_DIR):
-        os.makedirs(DESTINATION_DIR)
+    if not os.path.exists(Path(os.path.expanduser(DESTINATION_DIR))):
+        os.makedirs(Path(os.path.expanduser(DESTINATION_DIR)))
 
     global DATA_DIR
-    DATA_DIR = os.path.join(args.data)
+    DATA_DIR = Path(os.path.expanduser(os.path.join(args.data)))
 
 
 
@@ -1899,20 +1899,21 @@ def correctFile(LM, EM, file_name):
             # label appears in the file name of the corrected file
             label = "" if '_corrected' in splitted_file_name[0] else '_corrected'
 
-            new_file_name = splitted_file_name[0] + label + ''.join('.' + n for n in splitted_file_name[1:])
+            new_file_name = (''.join('.' + n for n in splitted_file_name[:-1]) + label + "." + splitted_file_name[-1])[1:]
+
 
             if new_file_name[0] == "/" or new_file_name[0] == "\\":
                 new_file_name = new_file_name[1:]
-            target = Path(os.path.join(DESTINATION_DIR, new_file_name))
-            target_path, target_filename = os.path.split(target)
 
-            if not os.path.exists(target_path):
-                os.makedirs(target_path)
 
-            #print("target", target)
-            #print("targetPath",target_path)
-            #print("targetFilename", target_filename)
-####################################
+
+            target_path, target_filename = os.path.split(new_file_name)
+            target = Path(os.path.join(Path(os.path.expanduser(DESTINATION_DIR)), target_filename))
+
+
+            if not os.path.exists(Path(os.path.expanduser(DESTINATION_DIR))):
+                os.makedirs(Path(os.path.expanduser(DESTINATION_DIR)))
+
 
             # special file types: XML and annotated XML (verticalized)
             if str(file_name).endswith(".xml") or str(file_name).endswith(".xml.tagged"):
@@ -1942,9 +1943,6 @@ def correctFile(LM, EM, file_name):
             else:
                 with open(target, "w") as fileOut:
                     fileOut.write(correct_plain_text(LM, EM, data, [])[0])
-
-
-########################################
 
 
 
