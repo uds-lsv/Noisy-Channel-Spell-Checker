@@ -1688,6 +1688,10 @@ def process_arguments(args):
     if not os.path.exists(DESTINATION_DIR):
         os.makedirs(DESTINATION_DIR)
 
+    global DATA_DIR
+    DATA_DIR = os.path.join(args.data)
+
+
 
     global OVERWRITE
     OVERWRITE = args.overwrite
@@ -1905,7 +1909,9 @@ def correctFile(LM, EM, file_name):
             if not os.path.exists(target_path):
                 os.makedirs(target_path)
 
-
+            #print("target", target)
+            #print("targetPath",target_path)
+            #print("targetFilename", target_filename)
 ####################################
 
             # special file types: XML and annotated XML (verticalized)
