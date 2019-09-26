@@ -17,7 +17,8 @@ The tool can be executed by calling ``spell-checker.py``. It provides a variety 
 | **Argument**        |    **Value**        | **Description**  |
 | :-------------: |:-------------:|:-----:|
 | **`-c`** or **`--correct`**       | file \| directory \| Standard Input | Text that is supposed to be corrected by the spell checker. You can enter one or more files, multiple directories or direct input. Directories are recursively traversed  |
-| **`-o`** or **`--output`**       | file \| directory  | Determine where to store the corrected files (per default: *output/*) |
+| **`-o`** or **`--output`**       | file \| directory  | Determine where to store the corrected files (default: *output/*) |
+| **`-d`** or **`--data`**       | directory  | Determine the location of the data like auxiliary files or training documents (default: *data/*) |
 | **`-ow`** or **`--overwrite`**       |  | If set, all the selected documents are overwritten by its correction. |
 |      | |  |
 | **`-lm`** or **`--languagemodel`**       | lm.arpa | Filename to specify a arpa-formated language model or where to store a new trained language model. |

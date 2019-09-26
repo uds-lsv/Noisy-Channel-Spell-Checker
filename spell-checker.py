@@ -18,12 +18,12 @@ from pathlib import Path
 import warnings
 
 
-VERSION = "1.0.30"
+VERSION = "1.0.31"
 SMOOTH_LM = 1e-06
 SMOOTH_EM = 0.0001
 PRIOR_WEIGHT = 1.25
 
-N_GRAM = 1
+N_GRAM = 2
 DISTANCE_LIMIT = 2
 COUNT_THRESHOLD = 2
 
@@ -38,7 +38,7 @@ QUIET = False
 VERBOSE = False
 
 EVALUATE_ROYAL_SOCIETY_CORPUS = False
-DATA_DIR = 'data'
+DATA_DIR = 'data/'
 SRILM_PATH = "/nethome/cklaus/tools/srilm/bin/i686-m64"
 NUM_CORES = max(1,multiprocessing.cpu_count()-1)
 
@@ -47,8 +47,6 @@ CORRECT_RSC = False
 
 # Suppress Warnings
 warnings.filterwarnings("ignore")
-
-#warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 " Caching System "
@@ -326,7 +324,7 @@ class ErrorModel(dict):
         self._unigrams = unigrams
         self._bigrams = bigrams
 
-        editFile = open(Path('data', modus + '.txt'), "r", encoding="iso-8859-1")
+        editFile = open(Path(DATA_DIR, modus + '.txt'), "r", encoding="iso-8859-1")
 
         # read in edit file
         for line in editFile:
@@ -389,11 +387,11 @@ class ErrorModel(dict):
 
 
 
-def getOriginPath(line):
-    path = re.sub(r':', r'', 'data/Origin/' + line.split()[0] + '.xml')
-    if platform.system() != "Linux":
-        path = re.sub(r'/', r'\\', path)
-    return path
+#def getOriginPath(line):
+#    path = re.sub(r':', r'', 'data/Origin/' + line.split()[0] + '.xml')
+#    if platform.system() != "Linux":
+#        path = re.sub(r'/', r'\\', path)
+#    return path
 
 
 def getPath(line):
@@ -601,22 +599,22 @@ def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
 
 def GroundTruthToTxt():
 
-    num_lines = sum(1 for _ in open("data/test_data.txt", "r", encoding="utf8"))
+    num_lines = sum(1 for _ in open(os.path.join(Path(DATA_DIR, "test_data.txt")), "r", encoding="utf8"))
 
-    testData = open("data/test_data.txt", "r", encoding="utf8")
+    testData = open(os.path.join(Path(DATA_DIR, "test_data.txt")), "r", encoding="utf8")
     count = 0
 
-    corpus = open("data/groundTruth.txt", "w")
+    corpus = open(os.path.join(Path(DATA_DIR, "groundTruth.txt")), "w")
 
     for file in testData:
         linebreaker = 0
 
         if platform.system() == "Linux":
             file = file.split()[0][:-1] + ".xml.tagged"
-            pathGT = r'data/testSet/GroundTruth/' + file
+            pathGT = os.path.join(Path(DATA_DIR,'testSet','GroundTruth', file))
         else:
             file = re.sub(r'/', r'\\\\', file.split()[0][:-1] + ".xml.tagged")
-            pathGT = r'testSet\\GroundTruth\\' + file
+            pathGT = os.path.join(Path(DATA_DIR, "testSet", "GroundTruth", file ))
 
         try:
             with open(pathGT, 'r', encoding="iso-8859-1") as f:
@@ -794,7 +792,7 @@ def buildBlackList():
 
 
 
-    file = codecs.open("data/cleanDifferences.count", "r", encoding="utf8")
+    file = codecs.open(os.path.join(Path(DATA_DIR, "cleanDifferences.count")), "r", encoding="utf8")
     blackList = {}
 
     for line in file:
@@ -1318,7 +1316,7 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
         test = ""
 
 
-    path = Path(os.path.join('data', test, 'Origin', fileName.split()[0][:-1] + ".xml.tagged"))
+    path = Path(os.path.join(DATA_DIR, test, 'Origin', fileName.split()[0][:-1] + ".xml.tagged"))
 
     try:
         tree = ET.ElementTree(file=path)
@@ -1354,7 +1352,7 @@ def correctDocument(Vocabulary, LM, EM, fileName, TestSet = True):
 def correctionTestSet(LM, EM):
 
 
-    testFiles = open("data/test_data.txt")
+    testFiles = open(os.path.join(Path(DATA_DIR, "test_data.txt")))
     Vocabulary = LM.getVocabulary()
 
     global NUM_CORES
@@ -1449,87 +1447,12 @@ def compute_perplexity(arguments):
     subprocess.call(SRILM_PATH + "/ngram -lm "+ str(Path(arguments[1])) +
                     " -unk -ppl " + str(Path(arguments[0])), shell=True)
 
-def testChangingPercentage(algorithm="<noisy>"):
-    changes, numberwords = 0, 0
-    testFiles = open("data/test_data.txt")
-
-    outerCount = 0
-    for file in testFiles:
-        outerCount += 1
-
-        count = 0
-
-        if platform.system() == "Linux":
-            file = file.split()[0][:-1] + ".xml.tagged"
-            path_ori = r'data/testSet/Origin/' + file
-
-            if algorithm == "<rules>":
-                prefix = r'data/testSet/Rules/'
-            elif algorithm == "<noisy>":
-                prefix = r'data/testSet/NoisyChannel/'
-            elif algorithm == "<norvigUni>":
-                prefix = r'data/testSet/NorvigUnigrams/'
-            elif algorithm == "<norvigBi>":
-                prefix = r'data/testSet/NorvigBigrams/'
-            else:
-                raise ValueError("algorithm option not known!")
-            path = prefix + file
-        else:
-            file = re.sub(r'/', r'\\\\', file.split()[0][:-1] + ".xml.tagged")
-            path_ori = r'testSet\\Origin\\' + file
-
-            if algorithm == "<rules>":
-                prefix = r'testSet\\Rules\\'
-            elif algorithm == "<noisy>":
-                prefix = r'testSet\\NoisyChannel\\'
-            elif algorithm == "<norvigUni>":
-                prefix = r'testSet\\NorvigUnigrams\\'
-            elif algorithm == "<norvigBi>":
-                prefix = r'testSet\\NorvigBigrams\\'
-            else:
-                raise ValueError("algorithm option not known!")
-            path = prefix + file
-
-        try:
-            treeOri = ET.ElementTree(file=path_ori)
-            tree = ET.ElementTree(file=path)
-        except IOError:
-            print("FILE NOT FOUND in changingPercentage!! " + file)
-            continue
-
-        rootOri = treeOri.getroot()
-        root = tree.getroot()
-
-        childsOri = [child.text for child in list(rootOri)]
-        childs = [child.text for child in list(root)]
-
-        numPages = sum(1 for _ in list(rootOri))
-
-        if not (len(childsOri) == len(childs)):
-            print("INCONSISTENT NUMBER OF CHILDS")
-
-        for i in range(len(childs)):
-            count += 1
-
-            if childsOri[i] is not None and childs[i] is not None:
-                tmpchanges, tmpnumberwords = OverlapAnalysis(childsOri[i], childs[i])
-                changes += tmpchanges
-                numberwords += tmpnumberwords
-            else:
-                raise Exception("There is a inconsistent amount of pages")
-
-            sys.stdout.write('\r' + str(count) + " / " + str(numPages))
-            sys.stdout.flush()
-
-
-    print("\r" + "Changing percentage: {0}".format(changes / float(numberwords)))
-
 
 
 def correctCorpus(LM,EM):
 
 
-    documents = open("data/training_data.txt", "r", encoding="utf8")
+    documents = open( os.path.join(Path(DATA_DIR, "training_data.txt")), "r", encoding="utf8")
     Vocabulary = LM.getVocabulary()
 
 
@@ -1667,86 +1590,6 @@ def optimizeOOVESTIMATION(LM, EM):
 
 
 
-def reFormatXMLFiles():
-
-
-    for t in open("data/training_data.txt", "r", encoding="utf8"):
-
-
-        try:
-            path = "data/CorrectedCorpus/" + t.split()[0][:-1] + ".xml.tagged"
-            tree = ET.ElementTree(file=path)
-        except IOError:
-            print("FILE NOT FOUND !!")
-        except FileNotFoundError:
-            print("FILE NOT FOUND !!")
-            #except:
-
-
-
-            datei = open(path).read()
-
-            datei = re.sub(r'&amp\tNN\t&amp\n;\t:\t;\n', r'&amp;\tNN\t&amp;\n', datei)
-            datei = re.sub(r'&amp\tNNS\t&amp\n;\t:\t;\n', r'&amp;\tNNS\t&amp;\n', datei)
-            datei = re.sub(r'&#167\tNNS\t&#167\n;\t:\t;\n', r'&#167;\tNNS\t&#167;\n', datei)
-            datei = re.sub(r'&#167\tNN\t&#167\n;\t:\t;\n', r'&#167;\tNN\t&#167;\n', datei)
-            datei = re.sub(r'&#167\tJJ\t&#167\n;\t:\t;\n', r'&#167;\tJJ\t&#167;\n', datei)
-            datei = re.sub(r'&#167\tJJ\t&#167\n;\t:\t;\n', r'&#167;\tJJ\t&#167;\n', datei)
-
-            datei = re.sub(r'&gt\tNNS\t&gt\n;\t:\t;\n', r'&gt;\tNNS\t&gt;\n', datei)
-            datei = re.sub(r'&gt\tNN\t&gt\n;\t:\t;\n', r'&gt;\tNN\t&gt;\n', datei)
-
-
-            datei = re.sub(r'&lt\tNNS\t&lt\n;\t:\t;\n', r'&lt;\tNNS\t&lt;\n', datei)
-            datei = re.sub(r'&lt\tNN\t&lt\n;\t:\t;\n', r'&lt;\tNN\t&lt;\n', datei)
-
-            datei = re.sub(r'&lt\tVVD\t&lt\n;\t:\t;\n', r'&lt;\tVVD\t&lt;\n', datei)
-            datei = re.sub(r'&gt\tVVD\t&gt\n;\t:\t;\n', r'&gt;\tVVD\t&gt;\n', datei)
-            datei = re.sub(r'&amp\tVVD\t&amp\n;\t:\t;\n', r'&amp;\tVVD\t&amp;\n', datei)
-            datei = re.sub(r'&amp\tVVZ\t&amp\n;\t:\t;\n', r'&amp;\tVVZ\t&amp;\n', datei)
-            datei = re.sub(r'&lt\tVVZ\t&lt\n;\t:\t;\n', r'&lt;\tVVZ\t&lt;\n', datei)
-            datei = re.sub(r'&gt\tVVZ\t&gt\n;\t:\t;\n', r'&gt;\tVVZ\t&gt;\n', datei)
-
-            datei = re.sub(r'&gt\tJJ\t&gt\n;\t:\t;\n', r'&gt;\tJJ\t&gt;\n', datei)
-            datei = re.sub(r'&lt\tJJ\t&lt\n;\t:\t;\n', r'&lt;\tJJ\t&lt;\n', datei)
-            datei = re.sub(r'&amp\tJJ\t&amp\n;\t:\t;\n', r'&amp;\tJJ\t&amp;\n', datei)
-
-
-            datei = re.sub(r'&gt\tNP\t&gt\n;\t:\t;\n', r'&gt;\tNP\t&gt;\n', datei)
-            datei = re.sub(r'&lt\tNP\t&lt\n;\t:\t;\n', r'&lt;\tNP\t&lt;\n', datei)
-            datei = re.sub(r'&amp\tNP\t&amp\n;\t:\t;\n', r'&amp;\tNP\t&amp;\n', datei)
-
-            datei = re.sub(r'&gt\tRB\t&gt\n;\t:\t;\n', r'&gt;\tRB\t&gt;\n', datei)
-            datei = re.sub(r'&lt\tRB\t&lt\n;\t:\t;\n', r'&lt;\tRB\t&lt;\n', datei)
-            datei = re.sub(r'&amp\tRB\t&amp\n;\t:\t;\n', r'&amp;\tRB\t&amp;\n', datei)
-
-            datei = re.sub(r'&gt\tVV\t&gt\n;\t:\t;\n', r'&gt;\tVV\t&gt;\n', datei)
-            datei = re.sub(r'&lt\tVV\t&lt\n;\t:\t;\n', r'&lt;\tVV\t&lt;\n', datei)
-            datei = re.sub(r'&amp\tVV\t&amp\n;\t:\t;\n', r'&amp;\tVV\t&amp;\n', datei)
-
-
-            datei = re.sub(r'&gt\tVVG\t&gt\n;\t:\t;\n', r'&gt;\tVVG\t&gt;\n', datei)
-            datei = re.sub(r'&lt\tVVG\t&lt\n;\t:\t;\n', r'&lt;\tVVG\t&lt;\n', datei)
-            datei = re.sub(r'&amp\tVVG\t&amp\n;\t:\t;\n', r'&amp;\tVVG\t&amp;\n', datei)
-
-
-            datei = re.sub(r'&gt\tVVP\t&gt\n;\t:\t;\n', r'&gt;\tVVP\t&gt;\n', datei)
-            datei = re.sub(r'&lt\tVVP\t&lt\n;\t:\t;\n', r'&lt;\tVVP\t&lt;\n', datei)
-            datei = re.sub(r'&amp\tVVP\t&amp\n;\t:\t;\n', r'&amp;\tVVP\t&amp;\n', datei)
-
-
-            datei = re.sub(r'&gt\tVVN\t&gt\n;\t:\t;\n', r'&gt;\tVVN\t&gt;\n', datei)
-            datei = re.sub(r'&lt\tVVN\t&lt\n;\t:\t;\n', r'&lt;\tVVN\t&lt;\n', datei)
-            datei = re.sub(r'&amp\tVVN\t&amp\n;\t:\t;\n', r'&amp;\tVVN\t&amp;\n', datei)
-
-
-
-            f = open(path, "w")
-            f.write(datei)
-            f.close()
-
-
-
 
 
 def readArguments():
@@ -1760,6 +1603,7 @@ def readArguments():
     parser.add_argument("-c", '--correct',  type=str ,metavar="INPUT", nargs='*', help='Text that is supposed to be corrected by the spell checker. You can enter one or more files, multiple directories or direct input. Directories are recursively traversed ')
     parser.add_argument("-ow", '--overwrite', action='store_true', help='If set, all the selected documents are overwritten by its correction.')
     parser.add_argument("-o", '--output', default = "output/", help='Determine where to store the corrected files (per default: location of input data)')
+    parser.add_argument("-d", '--data', default = "data/", help='Determine the location of the data like auxiliary files or training documents')
 
 
     ## TRAINING
@@ -1974,7 +1818,6 @@ def process_arguments(args):
                             files.append(Path(root, f))
                 # Direct Token input
                 else:
-                    print("Sollte nicht gesehen werden",data)
                     tokens.append(data)
         #If only -c/--correct is given, open prompt environment
         else:
