@@ -1,9 +1,10 @@
 # Noisy-Channel-Spell-Checker
+##### by Carsten Klaus
 ---
 A tool for correcting misspellings in textual input using the Noisy Channel Model.
 
 ## Usage
-- [ ] Clone the repository 
+- [ ] Clone the repository
 - [ ] Install the SRILM toolkit (http://www.speech.sri.com/projects/srilm/download.html)
 - [ ] set variable SRILM_PATH in ``spell-checker.py`` to your SRILM binary folder
    (e.g. ``/user/srilm/bin/i686-m64``)
@@ -43,16 +44,16 @@ The tool can be executed by calling ``spell-checker.py``. It provides a variety 
 ## Tutorial
 
 #### Train a Language Model from scratch
-The n-gram **order** has to be specified a priori. The **train** parameter gets the textual input for training the language model. It supports a sequence of files or folders. Beside ordinary text files the parser supports well-structured xml-files and xml.tagged-files are verticalized xml-files annotated by the TreeTagger (see references). The SRILM toolkit generates the language model and stores it with location and name specified with the parameter **lm**. 
-**Note: Always make sure that the order of the language model you are using and the specified order are the same.**      
- 
+The n-gram **order** has to be specified a priori. The **train** parameter gets the textual input for training the language model. It supports a sequence of files or folders. Beside ordinary text files the parser supports well-structured xml-files and xml.tagged-files are verticalized xml-files annotated by the TreeTagger (see references). The SRILM toolkit generates the language model and stores it with location and name specified with the parameter **lm**.
+**Note: Always make sure that the order of the language model you are using and the specified order are the same.**
+
 ```ps
 python spell-checker.py --order 2 --train data/corporaTagged/ -lm LM2.arpa
 ```
 #### Core functionality: correct misspelled texts
 The spell checker can **correct** files specified in the command line. Again it supports files and directories as arguments. Here we are using a bigram Language Model *LM2.arpa* which is placed in the *data/* folder. By default the corrected files are stored in the *output/* folder with a ```_corrected``` suffix
 ```ps
-python spell-checker.py --order 2 --correct file.txt directory/ -lm data/LM2.arpa 
+python spell-checker.py --order 2 --correct file.txt directory/ -lm data/LM2.arpa
 ```
 #### Evaluate the model
 The package offers a test set of misspelled texts with their corresponding ground truth. This test set is a small subset of the Royal Society Corpus. The parameter **test** first processes the 26 test files and then compares the result against the ground truth. Depending on your machine and the number of cores you are using this can take a couple of minutes.
@@ -60,7 +61,7 @@ The package offers a test set of misspelled texts with their corresponding groun
 python spell-checker.py -lm data/LM2.arpa --test --order 2
 ```
 #### Special Use Case: Post-Process the Royal Society Corpus
-You only need to specify the parameter **royal** and the process starts. The corpus comprise of approximately 10.000 files that is the entire procedure takes multiple hours. **Prerequirement**: Inside *data/* you need a folder *corpusTagged/*. It contains the files in *train_data.txt* in a verticalized format. You should also create a folder *CorrectedCorpus/*. This is the destination folder for the processed Royal Society Corpus. We recommend a **2-gram** language model. 
+You only need to specify the parameter **royal** and the process starts. The corpus comprise of approximately 10.000 files that is the entire procedure takes multiple hours. **Prerequirement**: Inside *data/* you need a folder *corpusTagged/*. It contains the files in *train_data.txt* in a verticalized format. You should also create a folder *CorrectedCorpus/*. This is the destination folder for the processed Royal Society Corpus. We recommend a **2-gram** language model.
 ```ps
 python spell-checker.py -lm data/LM2.arpa --royal --order 2
 ```
@@ -89,5 +90,3 @@ python spell-checker.py -lm data/LM2.arpa --royal --order 2
 
 ##### Data
 * Typo frequency data set (*typo.txt*): **Peter Norvig.** *Natural language corpus data: Beautiful data.* http://norvig.com/ngrams/, 2008. (Accessed: 08.11.2017).
-
-

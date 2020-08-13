@@ -1,3 +1,8 @@
+"""
+    File name: spell-checker.py
+    Author: Carsten Klaus
+    Python Version: 3.x
+"""
 
 from __future__ import print_function
 import builtins as __builtin__
@@ -40,7 +45,7 @@ VERBOSE = False
 EVALUATE_ROYAL_SOCIETY_CORPUS = False
 DATA_DIR = 'data/'
 SRILM_PATH = "/nethome/cklaus/tools/srilm/bin/i686-m64"
-NUM_CORES = max(1,multiprocessing.cpu_count()-1)
+NUM_CORES = max(1, multiprocessing.cpu_count() - 1)
 
 
 CORRECT_RSC = False
@@ -50,6 +55,7 @@ warnings.filterwarnings("ignore")
 
 
 " Caching System "
+
 
 def memo(f):
     """Memoize function f."""
@@ -111,8 +117,6 @@ def memo3(f):
 
     fmemo.cache = table
     return fmemo
-
-
 
 
 def print(*args, **kwargs):
@@ -2006,11 +2010,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
