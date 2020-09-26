@@ -322,7 +322,6 @@ class ErrorModel(dict):
     _unigrams = {}
     _bigrams = {}
 
-
     def __init__(self, unigrams, bigrams, modus):
 
         self._unigrams = unigrams
@@ -346,7 +345,6 @@ class ErrorModel(dict):
             if key.split('|')[1] == '>':
                 summe += self[key]
         self._numberDeletionAtBeginning = summe
-
 
     @memo2
     def __call__(self, edit):
@@ -390,14 +388,6 @@ class ErrorModel(dict):
         return self.bigrams
 
 
-
-#def getOriginPath(line):
-#    path = re.sub(r':', r'', 'data/Origin/' + line.split()[0] + '.xml')
-#    if platform.system() != "Linux":
-#        path = re.sub(r'/', r'\\', path)
-#    return path
-
-
 def getPath(line):
     path = re.sub(r':', r'', 'data/corpusTagged/' + line.split()[0] + '.xml.tagged')
     if platform.system() != "Linux":
@@ -416,8 +406,6 @@ def getBigrams(word):
         if '\n' not in word[i:i + 2]:
             bigrams.append(word[i:i + 2])
     return bigrams
-
-
 
 def buildLanguageModel(arpa_file=None, files=[], TestSet = True):
 
@@ -791,11 +779,6 @@ def buildBlackList():
 
     global blackList
 
-    # TODO check wheter this works. If so, then Remove TODO
-    #return  blackList
-
-
-
     file = codecs.open(os.path.join(Path(DATA_DIR, "cleanDifferences.count")), "r", encoding="utf8")
     blackList = {}
 
@@ -1047,12 +1030,11 @@ def correct(Vocabulary, LM, EM, text, history):
 
 def correct_plain_text(LM, EM, tokens, history=[]):
 
-
-
     vocabulary = LM.getVocabulary()
-
     if not isinstance(tokens, (list,)):
         tokens = [c.strip() for c in tokens.split(" ") if c]
+    # Remove empty tokens
+    tokens = list(filter(None, tokens))
     for i, t in enumerate(tokens):
         global stopwords
         if t in stopwords:
@@ -1846,13 +1828,12 @@ def printVersion():
 
 def correctionPrompt(LM, EM):
     print("Type text and submit with RETURN. Type 'quit()' when you are done.")
-    inputText = None
     while True:
-        inputText = input(">>>  ")
-        if inputText == "quit()":
+        input_text = input(">>>  ")
+        if input_text == "quit()":
             break
         else:
-            print(correct_plain_text(LM, EM, inputText, [])[0])
+            print(correct_plain_text(LM, EM, input_text, [])[0])
     return
 
 
